@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Scanner — dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
+    --muted:#898781; --hairline:#e1e0d9; --border:rgba(11,11,11,.10);
+    --accent:#2a78d6; --accent-wash:rgba(42,120,214,.08);
+    --good:#0ca30c; --critical:#d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7;
+      --muted:#898781; --hairline:#2c2c2a; --border:rgba(255,255,255,.10);
+      --accent:#3987e5; --accent-wash:rgba(57,135,229,.12);
+      --good:#0ca30c; --critical:#d03b3b;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px; background:var(--page); color:var(--ink);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .row-between { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .sub { color:var(--ink-2); margin:0 0 20px; }
+  button { font:inherit; cursor:pointer; }
+  .btn { border:1px solid var(--hairline); background:var(--surface); color:var(--ink);
+         border-radius:8px; padding:6px 12px; }
+  .btn:hover { border-color:var(--accent); }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  /* setup / token screen */
+  .card { background:var(--surface); border:1px solid var(--border);
+          border-radius:10px; padding:18px 20px; }
+  .setup { max-width:640px; margin:24px auto; }
+  .setup ol { padding-left:20px; }
+  .setup li { margin:6px 0; }
+  .setup input { width:100%; font:inherit; padding:8px 10px; margin:10px 0;
+                 border:1px solid var(--hairline); border-radius:8px;
+                 background:var(--page); color:var(--ink); }
+  .err { color:var(--critical); font-size:14px; margin:8px 0; }
+  code { background:var(--accent-wash); padding:1px 5px; border-radius:4px; font-size:13px; }
+
+  /* stat tiles */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+           gap:12px; margin-bottom:20px; }
+  .tile { background:var(--surface); border:1px solid var(--border);
+          border-radius:10px; padding:14px 16px; }
+  .tile .label { font-size:13px; color:var(--ink-2); }
+  .tile .value { font-size:32px; font-weight:600; }
+  .tile .value small { font-size:16px; font-weight:400; color:var(--muted); }
+
+  /* filters */
+  .filters { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+             background:var(--surface); border:1px solid var(--border);
+             border-radius:10px; padding:10px 14px; margin-bottom:16px; }
+  .filters label { display:flex; gap:6px; align-items:center; color:var(--ink-2);
+                   font-size:14px; white-space:nowrap; }
+  .filters select { font:inherit; padding:4px 6px; background:var(--surface);
+                    color:var(--ink); border:1px solid var(--hairline); border-radius:6px; }
+  .seg { display:inline-flex; border:1px solid var(--hairline); border-radius:8px; overflow:hidden; }
+  .seg button { font-size:14px; padding:4px 12px; border:0; background:transparent; color:var(--ink-2); }
+  .seg button + button { border-left:1px solid var(--hairline); }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
+  .count { margin-left:auto; color:var(--muted); font-size:14px; }
+
+  /* table */
+  .tablecard { background:var(--surface); border:1px solid var(--border);
+               border-radius:10px; overflow-x:auto; margin-bottom:24px; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { text-align:left; padding:8px 14px; border-top:1px solid var(--hairline); vertical-align:top; }
+  thead th { border-top:0; font-size:13px; color:var(--muted); font-weight:600; }
+  td.date { font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap; }
+  td.tier { color:var(--ink-2); }
+  tr.new td { background:var(--accent-wash); }
+  tr.new td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
+  .chip { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px;
+          border-radius:999px; background:var(--accent); color:#fff; margin-left:8px; vertical-align:1px; }
+  .loc { color:var(--ink-2); font-size:13px; }
+  .nearmiss { color:var(--muted); font-size:12px; }
+  .dismiss { border:1px solid var(--hairline); background:var(--surface); color:var(--ink-2);
+             border-radius:6px; padding:2px 10px; font-size:13px; white-space:nowrap; }
+  .dismiss:hover { border-color:var(--critical); color:var(--critical); }
+
+  /* health */
+  h2 { font-size:16px; margin:0 0 10px; }
+  .health { display:flex; flex-wrap:wrap; gap:8px; }
+  .feed { display:inline-flex; gap:6px; align-items:baseline; background:var(--surface);
+          border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:13px; }
+  .feed .ok { color:var(--good); font-weight:700; }
+  .feed .fail { color:var(--critical); font-weight:700; }
+  .feed .manual { color:var(--muted); font-weight:700; }
+  .feed .detail { color:var(--muted); font-size:12px; }
+
+  /* toasts */
+  #toasts { position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+            display:flex; flex-direction:column; gap:8px; z-index:50; }
+  .toast { background:var(--ink); color:var(--page); border-radius:8px; padding:10px 14px;
+           font-size:14px; display:flex; gap:14px; align-items:center; box-shadow:0 4px 16px rgba(0,0,0,.25); }
+  .toast button { background:transparent; border:0; color:#7db3f0; font-weight:600; }
+  #status { color:var(--ink-2); padding:24px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- token setup screen (shown when no/invalid token) -->
+  <div id="setup" class="setup card" hidden>
+    <h1>🎯 Job Scanner — connect</h1>
+    <p class="sub">This page holds no data. It loads your postings live from your
+      private repo using a token you provide, kept only in this browser.</p>
+    <p><strong>Create a fine-grained token (one-time):</strong></p>
+    <ol>
+      <li>Open <a id="tokenLink" target="_blank" rel="noopener">GitHub → Fine-grained tokens → Generate new token</a>.</li>
+      <li>Name it (e.g. <code>job-dashboard</code>) and pick an expiration.</li>
+      <li>Resource owner: your account. Repository access: <strong>Only select repositories</strong> → choose <code id="repoName"></code>.</li>
+      <li>Permissions → Repository permissions → <strong>Contents: Read and write</strong>. (Metadata read is added automatically.) Nothing else.</li>
+      <li>Generate, copy the <code>github_pat_…</code> value, and paste it below.</li>
+    </ol>
+    <div id="setupErr" class="err" hidden></div>
+    <input id="tokenInput" type="password" placeholder="github_pat_…" autocomplete="off">
+    <button class="btn btn-primary" id="saveToken">Save &amp; connect</button>
+  </div>
+
+  <!-- main app -->
+  <div id="main" hidden>
+    <div class="row-between">
+      <div>
+        <h1>🎯 Job Scanner</h1>
+        <p class="sub" id="lastScan"></p>
+      </div>
+      <button class="btn" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
+    </div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="filters">
+      <div class="seg" id="tierSeg" role="group" aria-label="Tier"></div>
+      <label>Company
+        <select id="companySel"><option value="">All</option></select>
+      </label>
+      <label><input type="checkbox" id="matchesOnly" checked> Matches only</label>
+      <label><input type="checkbox" id="newOnly"> New only</label>
+      <span class="count" id="rowCount"></span>
+    </div>
+
+    <div class="tablecard">
+      <table>
+        <thead><tr><th>Tier</th><th>Company</th><th>Role</th><th>First seen</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <h2>Feed health</h2>
+    <div class="health" id="health"></div>
+  </div>
+
+  <div id="status" hidden></div>
+</div>
+<div id="toasts"></div>
+
+<script>
+  const CONFIG = {
+    owner: "bencschulze-byte", repo: "job-scanner",
+    dataPath: "dashboard.json", triagePath: "triage.yaml"
+  };
+</script>
+<script>
+
+(() => {
+  const KEY = "jobscanner.pat";
+  const $ = id => document.getElementById(id);
+  const token = () => localStorage.getItem(KEY);
+
+  // --- GitHub REST helpers ---
+  const apiUrl = path =>
+    `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`;
+  const api = (path, opts = {}) => fetch(apiUrl(path), {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opts.headers || {})
+    }
+  });
+  const b64decode = b64 => decodeURIComponent(escape(atob(b64.replace(/\s/g, ""))));
+  const b64encode = str => btoa(unescape(encodeURIComponent(str)));
+
+  async function loadFile(path) {
+    const r = await api(path);
+    if (r.status === 404) return { status: 404 };
+    if (!r.ok) throw { status: r.status };
+    const j = await r.json();
+    return { status: 200, sha: j.sha, text: b64decode(j.content) };
+  }
+
+  // --- triage.yaml (simple list we own the format of) ---
+  function parseTriage(text) {
+    const ids = [];
+    for (const line of (text || "").split("\n")) {
+      const m = line.match(/^\s*-\s*(.*)$/);
+      if (!m) continue;
+      let v = m[1].trim();
+      if (v.startsWith('"') && v.endsWith('"'))
+        v = v.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      if (v) ids.push(v);
+    }
+    return ids;
+  }
+  function serializeTriage(ids) {
+    const esc = s => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return "# Dismissed postings — hidden on the dashboard. Managed by the app.\n"
+      + "dismissed:\n" + ids.map(id => `  - "${esc(id)}"`).join("\n") + "\n";
+  }
+
+  // --- state ---
+  let DATA = null;
+  let triageIds = [];
+  let triageSha = null;
+  let dismissed = new Set();
+  const filters = { tier: "", company: "", matchesOnly: true, newOnly: false };
+
+  const esc = s => (s || "").replace(/[&<>"]/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // --- screens ---
+  function show(which, msg) {
+    $("setup").hidden = which !== "setup";
+    $("main").hidden = which !== "main";
+    $("status").hidden = which !== "status";
+    if (which === "status") $("status").textContent = msg || "";
+  }
+  function showSetup(errMsg) {
+    $("repoName").textContent = `${CONFIG.owner}/${CONFIG.repo}`;
+    $("tokenLink").href = "https://github.com/settings/personal-access-tokens/new";
+    const e = $("setupErr");
+    e.hidden = !errMsg; e.textContent = errMsg || "";
+    show("setup");
+  }
+
+  // --- boot: load data + triage ---
+  async function boot() {
+    if (!token()) return showSetup();
+    show("status", "Loading your postings…");
+    try {
+      const d = await loadFile(CONFIG.dataPath);
+      if (d.status === 404)
+        return show("status", "No scan data found yet — run a scan first.");
+      DATA = JSON.parse(d.text);
+      const t = await loadFile(CONFIG.triagePath);
+      triageIds = t.status === 404 ? [] : parseTriage(t.text);
+      triageSha = t.status === 404 ? null : t.sha;
+      dismissed = new Set(triageIds);
+      renderShell();
+      show("main");
+    } catch (err) {
+      if (err.status === 401)
+        return showSetup("That token was rejected (invalid or expired). Paste a fresh one.");
+      show("status", "Could not load data (error " + (err.status || "network") + ").");
+    }
+  }
+
+  // --- render ---
+  function renderShell() {
+    $("lastScan").textContent = "Last scan: " + (DATA.last_scan || "—");
+    const s = DATA.stats;
+    $("tiles").innerHTML = [
+      ["Open matches", s.open_matches],
+      ["New matches this scan", s.new_matches],
+      ["Feeds healthy", `${s.feeds_ok}<small> / ${s.feeds_auto}</small>`],
+      ["Open postings tracked", s.total_open.toLocaleString()]
+    ].map(([l, v]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("");
+
+    const seg = $("tierSeg");
+    seg.innerHTML = `<button data-tier="" aria-pressed="true">All tiers</button>` +
+      DATA.tiers.map(t => `<button data-tier="${t}" aria-pressed="false">Tier ${t}</button>`).join("");
+    seg.onclick = e => {
+      const b = e.target.closest("button"); if (!b) return;
+      filters.tier = b.dataset.tier;
+      for (const x of seg.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
+      renderRows();
+    };
+    $("companySel").innerHTML = `<option value="">All</option>` +
+      DATA.companies.map(c => `<option>${esc(c)}</option>`).join("");
+    $("companySel").onchange = e => { filters.company = e.target.value; renderRows(); };
+    $("matchesOnly").onchange = e => { filters.matchesOnly = e.target.checked; renderRows(); };
+    $("newOnly").onchange = e => { filters.newOnly = e.target.checked; renderRows(); };
+
+    $("health").innerHTML = DATA.health.map(h => {
+      const label = h.state === "ok" ? '<span class="ok">✓ ok</span>'
+        : h.state === "fail" ? '<span class="fail">✗ fail</span>'
+          : '<span class="manual">– manual</span>';
+      return `<span class="feed" title="${esc(h.detail)}">${label} ${esc(h.company)} <span class="detail">${esc(h.detail)}</span></span>`;
+    }).join("");
+
+    renderRows();
+  }
+
+  function visibleRows() {
+    return DATA.rows.filter(r =>
+      !dismissed.has(r.id) &&
+      (filters.tier === "" || r.tier === Number(filters.tier)) &&
+      (filters.company === "" || r.company === filters.company) &&
+      (!filters.matchesOnly || r.match) &&
+      (!filters.newOnly || r.new));
+  }
+
+  function renderRows() {
+    const rows = visibleRows();
+    $("rows").innerHTML = rows.map(r => `
+      <tr class="${r.new ? "new" : ""}" data-id="${esc(r.id)}">
+        <td class="tier">${r.tier}</td>
+        <td>${esc(r.company)}</td>
+        <td>
+          <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+          ${r.new ? '<span class="chip">NEW</span>' : ""}
+          ${r.match ? "" : ' <span class="nearmiss">(near-miss)</span>'}
+          <div class="loc">${esc(r.location)}</div>
+        </td>
+        <td class="date">${esc(r.first_seen)}</td>
+        <td><button class="dismiss" data-dismiss="${esc(r.id)}">Dismiss</button></td>
+      </tr>`).join("");
+    $("rows").querySelectorAll("[data-dismiss]").forEach(b =>
+      b.onclick = () => dismiss(b.dataset.dismiss));
+    $("rowCount").textContent = `${rows.length} shown`;
+  }
+
+  // --- dismiss: optimistic hide + undo toast + delayed commit ---
+  function dismiss(id) {
+    dismissed.add(id);
+    renderRows();
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerHTML = `<span>Dismissed.</span>`;
+    const undo = document.createElement("button");
+    undo.textContent = "Undo";
+    toast.appendChild(undo);
+    $("toasts").appendChild(toast);
+
+    const timer = setTimeout(() => { toast.remove(); commitDismiss(id); }, 5000);
+    undo.onclick = () => {
+      clearTimeout(timer);
+      dismissed.delete(id);
+      toast.remove();
+      renderRows();
+    };
+  }
+
+  // serialize writes so shas stay consistent
+  let chain = Promise.resolve();
+  function commitDismiss(id) {
+    chain = chain.then(async () => {
+      if (!triageIds.includes(id)) triageIds.push(id);
+      const put = sha => api(CONFIG.triagePath, {
+        method: "PUT",
+        body: JSON.stringify({
+          message: `Dismiss ${id}`,
+          content: b64encode(serializeTriage(triageIds)),
+          ...(sha ? { sha } : {})
+        })
+      });
+      let r = await put(triageSha);
+      if (r.status === 409) {                     // sha stale (scan committed meanwhile)
+        const t = await loadFile(CONFIG.triagePath);
+        triageIds = Array.from(new Set([...(t.text ? parseTriage(t.text) : []), id]));
+        triageSha = t.sha || null;
+        r = await put(triageSha);
+      }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      triageSha = (await r.json()).content.sha;
+    }).catch(err => {
+      // saving failed — surface it and un-hide so nothing is silently lost
+      dismissed.delete(id);
+      triageIds = triageIds.filter(x => x !== id);
+      renderRows();
+      const t = document.createElement("div");
+      t.className = "toast";
+      t.textContent = "⚠️ Could not save dismissal (" + err.message + "). Restored.";
+      $("toasts").appendChild(t);
+      setTimeout(() => t.remove(), 6000);
+    });
+  }
+
+  // --- wire setup controls ---
+  $("saveToken").onclick = () => {
+    const v = $("tokenInput").value.trim();
+    if (!v) return;
+    localStorage.setItem(KEY, v);
+    $("tokenInput").value = "";
+    boot();
+  };
+  $("tokenInput").addEventListener("keydown", e => { if (e.key === "Enter") $("saveToken").click(); });
+  $("resetToken").onclick = () => { localStorage.removeItem(KEY); showSetup(); };
+
+  boot();
+})();
+</script>
+</body>
+</html>
