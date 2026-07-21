@@ -3,162 +3,330 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Job Scanner — dashboard</title>
+<title>Job Scanner — today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    color-scheme: light;
-    --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e;
-    --muted:#898781; --hairline:#e1e0d9; --border:rgba(11,11,11,.10);
-    --accent:#2a78d6; --accent-wash:rgba(42,120,214,.08);
-    --good:#0ca30c; --critical:#d03b3b;
+    --page:#fbfbfc; --surface:#ffffff; --raised:#f6f7f9;
+    --ink:#16181d; --ink-2:#565c68; --muted:#8b909b; --faint:#b9bdc6;
+    --line:#e8eaee; --line-2:#dfe2e7;
+    /* the ONE accent — reserved exclusively for "new" */
+    --accent:#c67608; --accent-2:#e08a0b; --accent-wash:rgba(224,138,11,.10);
+    --accent-line:rgba(224,138,11,.35);
+    /* semantic (feed health) — deliberately NOT the accent */
+    --ok:#2e9e5b; --down:#d64545;
+    --serif:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --shadow:0 1px 2px rgba(16,18,24,.04),0 2px 8px rgba(16,18,24,.04);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      color-scheme: dark;
-      --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7;
-      --muted:#898781; --hairline:#2c2c2a; --border:rgba(255,255,255,.10);
-      --accent:#3987e5; --accent-wash:rgba(57,135,229,.12);
-      --good:#0ca30c; --critical:#d03b3b;
+      --page:#0e1013; --surface:#16191e; --raised:#1c2027;
+      --ink:#f2f3f5; --ink-2:#a2a8b3; --muted:#6e7480; --faint:#4a4f59;
+      --line:#23272e; --line-2:#2b303a;
+      --accent:#f0a93c; --accent-2:#f0a93c; --accent-wash:rgba(240,169,60,.13);
+      --accent-line:rgba(240,169,60,.42);
+      --ok:#43b571; --down:#e26d6d;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 2px 10px rgba(0,0,0,.25);
     }
   }
   * { box-sizing:border-box; }
-  body { margin:0; padding:24px; background:var(--page); color:var(--ink);
-         font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  .wrap { max-width:1080px; margin:0 auto; }
-  a { color:var(--accent); text-decoration:none; }
-  a:hover { text-decoration:underline; }
-  h1 { font-size:22px; margin:0 0 4px; }
-  .row-between { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-  .sub { color:var(--ink-2); margin:0 0 20px; }
-  button { font:inherit; cursor:pointer; }
-  .btn { border:1px solid var(--hairline); background:var(--surface); color:var(--ink);
-         border-radius:8px; padding:6px 12px; }
-  .btn:hover { border-color:var(--accent); }
-  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--page); color:var(--ink);
+    font-family:var(--sans); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:900px; margin:0 auto; padding:20px 20px 64px; }
+  a { color:inherit; text-decoration:none; }
+  b, strong { font-weight:600; }
+  button { font:inherit; cursor:pointer; color:inherit; }
+  .mono { font-family:var(--mono); }
 
-  /* setup / token screen */
-  .card { background:var(--surface); border:1px solid var(--border);
-          border-radius:10px; padding:18px 20px; }
-  .setup { max-width:640px; margin:24px auto; }
-  .setup ol { padding-left:20px; }
-  .setup li { margin:6px 0; }
-  .setup input { width:100%; font:inherit; padding:8px 10px; margin:10px 0;
-                 border:1px solid var(--hairline); border-radius:8px;
+  /* ---- top bar ---- */
+  .topbar { display:flex; align-items:center; justify-content:space-between;
+            padding:2px 0 20px; }
+  .brand { font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+           text-transform:uppercase; color:var(--muted); }
+  .brand b { color:var(--ink-2); font-weight:500; }
+  .ghost { border:1px solid var(--line-2); background:transparent; color:var(--ink-2);
+           border-radius:8px; padding:6px 11px; font-size:13px; }
+  .ghost:hover { border-color:var(--muted); color:var(--ink); }
+
+  /* ---- hero (the whole point of the page) ---- */
+  .hero { padding:26px 0 22px; border-top:1px solid var(--line); }
+  .hero .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.12em;
+                   text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+  .hero h1 { font-family:var(--serif); font-weight:500; margin:0;
+             font-size:clamp(30px,7vw,52px); line-height:1.04; letter-spacing:-.01em;
+             text-wrap:balance; }
+  .hero .sub { margin:12px 0 0; color:var(--ink-2); font-size:16px; max-width:60ch; }
+  .hero .sub a { color:var(--accent); border-bottom:1px solid var(--accent-line);
+                 font-weight:500; }
+  /* has-new: warm + confident */
+  .hero.has-new { border-top:2px solid var(--accent); }
+  .hero.has-new .eyebrow { color:var(--accent); }
+  .hero.has-new h1 .n { color:var(--accent); font-weight:600; }
+  /* no-new: quiet + reassuring */
+  .hero.no-new h1 { color:var(--ink-2); font-weight:500; }
+  .hero.no-new .eyebrow { color:var(--faint); }
+
+  /* tabs */
+  .tabs { display:inline-flex; border:1px solid var(--line-2); border-radius:9px;
+          overflow:hidden; background:var(--surface); }
+  .tabs button { border:0; background:transparent; color:var(--ink-2); padding:5px 14px;
+                 font-size:13px; font-weight:500; }
+  .tabs button + button { border-left:1px solid var(--line-2); }
+  .tabs button[aria-selected="true"] { background:var(--ink); color:var(--page); }
+
+  /* summary tab */
+  .summary { display:flex; flex-direction:column; gap:14px; margin-top:8px; }
+  .tblock { background:var(--surface); border:1px solid var(--line); border-radius:12px;
+            padding:16px 18px; box-shadow:var(--shadow); }
+  .tblock-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .tblock-head h3 { margin:0; font-family:var(--serif); font-weight:500; font-size:19px; }
+  .tblock-head .funnel { font-family:var(--mono); font-size:12px; color:var(--muted);
+                         font-variant-numeric:tabular-nums; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin:12px 0 6px; font-size:12.5px;
+            font-family:var(--mono); color:var(--ink-2); }
+  .legend b { font-weight:500; font-variant-numeric:tabular-nums; }
+  .swatch { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; }
+  .sw-app { background:var(--ok); } .sw-open { background:var(--ink); }
+  .sw-dis { background:var(--faint); }
+  .bar { display:flex; height:9px; border-radius:5px; overflow:hidden; background:var(--raised);
+         margin:2px 0 4px; }
+  .bar .b-app { background:var(--ok); } .bar .b-open { background:var(--ink); }
+  .bar .b-dis { background:var(--faint); }
+  .nonmatch { font-family:var(--mono); font-size:12px; color:var(--muted); }
+  details.companies { margin-top:10px; border-top:1px solid var(--line); padding-top:10px; }
+  details.companies summary { font-family:var(--mono); font-size:12px; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--muted); cursor:pointer; list-style:none; }
+  details.companies summary::-webkit-details-marker { display:none; }
+  details.companies summary::before { content:"▸ "; color:var(--faint); }
+  details.companies[open] summary::before { content:"▾ "; }
+  .crow { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:baseline;
+          padding:9px 0; border-top:1px solid var(--line); }
+  .crow.first { border-top:0; }
+  .crow .cname { font-weight:500; font-size:14px; }
+  .crow .cblurb { grid-column:1; color:var(--ink-2); font-size:12.5px; }
+  .crow .cnums { grid-column:2; grid-row:1/3; align-self:center; font-family:var(--mono);
+                 font-size:11.5px; color:var(--muted); text-align:right; white-space:nowrap;
+                 font-variant-numeric:tabular-nums; }
+  .crow .cnums .np { color:var(--ink-2); }
+  .crow .cbar { grid-column:1/-1; margin-top:3px; }
+
+  /* ---- secondary stats (demoted) ---- */
+  .stats { display:flex; flex-wrap:wrap; gap:6px 20px; font-family:var(--mono);
+           font-size:12.5px; color:var(--muted); padding:4px 0 20px;
+           border-bottom:1px solid var(--line); }
+  .stats b { color:var(--ink-2); font-weight:500; font-variant-numeric:tabular-nums; }
+
+  /* ---- toolbar ---- */
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px 12px; align-items:center;
+             padding:16px 0 12px; }
+  .seg { display:inline-flex; border:1px solid var(--line-2); border-radius:8px;
+         overflow:hidden; background:var(--surface); }
+  .seg button { border:0; background:transparent; color:var(--ink-2); padding:5px 11px;
+                font-size:13px; }
+  .seg button + button { border-left:1px solid var(--line-2); }
+  .seg button[aria-pressed="true"] { background:var(--ink); color:var(--page); }
+  select { font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--line-2);
+           border-radius:8px; background:var(--surface); color:var(--ink); }
+  .toggle { display:inline-flex; align-items:center; gap:6px; font-size:13px;
+            color:var(--ink-2); }
+  .count { margin-left:auto; font-family:var(--mono); font-size:12.5px; color:var(--muted);
+           font-variant-numeric:tabular-nums; }
+  .count .dismissed { color:var(--faint); }
+
+  /* ---- posting cards ---- */
+  .cards { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .card { display:grid;
+          grid-template-columns:auto minmax(0,1fr) auto;
+          grid-template-areas:"tier company meta" "tier title meta" "tier loc meta";
+          column-gap:14px; row-gap:1px; align-items:center;
+          background:var(--surface); border:1px solid var(--line);
+          border-radius:12px; padding:12px 15px; box-shadow:var(--shadow); }
+  .card.is-new { border-color:var(--accent-line); background:
+    linear-gradient(0deg,var(--accent-wash),var(--accent-wash)),var(--surface);
+    box-shadow:inset 3px 0 0 var(--accent),var(--shadow); }
+  .c-tier { grid-area:tier; }
+  .tier { font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.02em;
+          padding:3px 7px; border-radius:6px; white-space:nowrap; }
+  .tier.t1 { background:var(--ink); color:var(--page); }
+  .tier.t2 { border:1px solid var(--line-2); color:var(--ink-2); }
+  .tier.t3 { background:var(--raised); color:var(--muted); }
+  .c-company { grid-area:company; font-family:var(--mono); font-size:11.5px;
+               letter-spacing:.03em; text-transform:uppercase; color:var(--muted);
+               display:flex; align-items:center; gap:8px; }
+  .newtag { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.08em;
+            color:var(--accent); border:1px solid var(--accent-line); border-radius:4px;
+            padding:0 5px; }
+  .c-title { grid-area:title; justify-self:start; font-size:15.5px; font-weight:500;
+             color:var(--ink); line-height:1.3; }
+  .c-title:hover { color:var(--accent); }
+  .card:not(.is-new) .c-title:hover { color:var(--ink); text-decoration:underline;
+                                      text-underline-offset:2px; }
+  .c-loc { grid-area:loc; font-size:13px; color:var(--ink-2); }
+  .c-loc .more { color:var(--faint); font-family:var(--mono); font-size:11.5px; }
+  .c-sal { font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
+           border:1px solid var(--line-2); border-radius:5px; padding:0 5px;
+           margin-left:8px; white-space:nowrap; }
+  .c-meta { grid-area:meta; display:flex; align-items:center; gap:4px; }
+  .c-date { font-family:var(--mono); font-size:11.5px; color:var(--muted);
+            white-space:nowrap; margin-right:2px; }
+  .iconbtn { display:inline-grid; place-items:center; width:30px; height:30px;
+             border:0; border-radius:8px; background:transparent; color:var(--muted);
+             transition:background .12s,color .12s; }
+  .iconbtn svg { width:15px; height:15px; }
+  .iconbtn:hover, .iconbtn:focus-visible { background:var(--raised); }
+  .iconbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .c-dismiss:hover, .c-dismiss:focus-visible { color:var(--ink); }
+  .c-apply:hover, .c-apply:focus-visible { color:var(--ok); }
+
+  /* applied section — green, collapsed by default, above the open list */
+  details.applied-sec { margin:14px 0 4px; }
+  details.applied-sec summary { display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ok); cursor:pointer; list-style:none; padding:6px 0; }
+  details.applied-sec summary::-webkit-details-marker { display:none; }
+  details.applied-sec summary::before { content:"▸"; color:var(--ok); }
+  details.applied-sec[open] summary::before { content:"▾"; }
+  .card.is-applied { border-color:rgba(46,158,91,.4); background:
+    linear-gradient(0deg,rgba(46,158,91,.07),rgba(46,158,91,.07)),var(--surface);
+    box-shadow:inset 3px 0 0 var(--ok),var(--shadow); }
+  .appliedtag { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.08em;
+                color:var(--ok); border:1px solid rgba(46,158,91,.4); border-radius:4px;
+                padding:0 5px; }
+
+  .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:14px; }
+
+  /* ---- feed health (quiet, collapsed) ---- */
+  details.health { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
+  details.health summary { font-family:var(--mono); font-size:12px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); cursor:pointer; list-style:none; }
+  details.health summary::-webkit-details-marker { display:none; }
+  details.health summary::before { content:"▸ "; color:var(--faint); }
+  details.health[open] summary::before { content:"▾ "; }
+  .health-grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .feed { font-size:12px; font-family:var(--mono); color:var(--muted);
+          border:1px solid var(--line); border-radius:7px; padding:4px 8px; }
+  .feed .ok { color:var(--ok); } .feed .down { color:var(--down); }
+  .feed .man { color:var(--faint); }
+
+  /* ---- setup / token screen ---- */
+  .setup { max-width:600px; margin:28px auto; }
+  .setup .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.12em;
+                    text-transform:uppercase; color:var(--muted); }
+  .setup h1 { font-family:var(--serif); font-weight:500; font-size:34px; margin:8px 0 6px; }
+  .setup p { color:var(--ink-2); }
+  .setup .panel { background:var(--surface); border:1px solid var(--line);
+                  border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);
+                  margin-top:18px; }
+  .setup ol { padding-left:18px; margin:0 0 4px; }
+  .setup li { margin:7px 0; color:var(--ink-2); }
+  .setup code { font-family:var(--mono); font-size:12.5px; background:var(--raised);
+                padding:1px 6px; border-radius:5px; color:var(--ink); }
+  .setup input { width:100%; font-family:var(--mono); font-size:13px; padding:10px 12px;
+                 margin:14px 0 12px; border:1px solid var(--line-2); border-radius:9px;
                  background:var(--page); color:var(--ink); }
-  .err { color:var(--critical); font-size:14px; margin:8px 0; }
-  code { background:var(--accent-wash); padding:1px 5px; border-radius:4px; font-size:13px; }
+  .setup input:focus-visible { outline:2px solid var(--accent); outline-offset:1px;
+                               border-color:var(--accent); }
+  .btn-go { background:var(--ink); color:var(--page); border:0; border-radius:9px;
+            padding:10px 16px; font-weight:500; font-size:14px; }
+  .btn-go:hover { opacity:.9; }
+  .err { color:var(--down); font-size:13px; margin:6px 0 0; }
 
-  /* stat tiles */
-  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-           gap:12px; margin-bottom:20px; }
-  .tile { background:var(--surface); border:1px solid var(--border);
-          border-radius:10px; padding:14px 16px; }
-  .tile .label { font-size:13px; color:var(--ink-2); }
-  .tile .value { font-size:32px; font-weight:600; }
-  .tile .value small { font-size:16px; font-weight:400; color:var(--muted); }
+  /* ---- toasts ---- */
+  #toasts { position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+            display:flex; flex-direction:column; gap:8px; z-index:60; width:min(420px,92vw); }
+  .toast { background:var(--ink); color:var(--page); border-radius:10px;
+           padding:11px 14px; font-size:13.5px; display:flex; gap:12px; align-items:center;
+           justify-content:space-between; box-shadow:0 6px 24px rgba(0,0,0,.28); }
+  .toast button { background:transparent; border:0; color:#e6a94b; font-weight:600;
+                  font-family:var(--mono); font-size:12px; letter-spacing:.04em;
+                  text-transform:uppercase; }
+  #status { color:var(--muted); text-align:center; padding:56px 0; font-size:14px; }
 
-  /* filters */
-  .filters { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
-             background:var(--surface); border:1px solid var(--border);
-             border-radius:10px; padding:10px 14px; margin-bottom:16px; }
-  .filters label { display:flex; gap:6px; align-items:center; color:var(--ink-2);
-                   font-size:14px; white-space:nowrap; }
-  .filters select { font:inherit; padding:4px 6px; background:var(--surface);
-                    color:var(--ink); border:1px solid var(--hairline); border-radius:6px; }
-  .seg { display:inline-flex; border:1px solid var(--hairline); border-radius:8px; overflow:hidden; }
-  .seg button { font-size:14px; padding:4px 12px; border:0; background:transparent; color:var(--ink-2); }
-  .seg button + button { border-left:1px solid var(--hairline); }
-  .seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
-  .count { margin-left:auto; color:var(--muted); font-size:14px; }
+  /* ---- motion (restrained, opt-out aware) ---- */
+  @media (prefers-reduced-motion: no-preference) {
+    #main:not([hidden]) .hero { animation:rise .45s cubic-bezier(.2,.7,.3,1) both; }
+    #main:not([hidden]) .cards { animation:fade .5s ease .08s both; }
+    .toast { animation:rise .2s ease both; }
+  }
+  @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
 
-  /* table */
-  .tablecard { background:var(--surface); border:1px solid var(--border);
-               border-radius:10px; overflow-x:auto; margin-bottom:24px; }
-  table { border-collapse:collapse; width:100%; }
-  th,td { text-align:left; padding:8px 14px; border-top:1px solid var(--hairline); vertical-align:top; }
-  thead th { border-top:0; font-size:13px; color:var(--muted); font-weight:600; }
-  td.date { font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap; }
-  td.tier { color:var(--ink-2); }
-  tr.new td { background:var(--accent-wash); }
-  tr.new td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
-  .chip { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px;
-          border-radius:999px; background:var(--accent); color:#fff; margin-left:8px; vertical-align:1px; }
-  .loc { color:var(--ink-2); font-size:13px; }
-  .nearmiss { color:var(--muted); font-size:12px; }
-  .dismiss { border:1px solid var(--hairline); background:var(--surface); color:var(--ink-2);
-             border-radius:6px; padding:2px 10px; font-size:13px; white-space:nowrap; }
-  .dismiss:hover { border-color:var(--critical); color:var(--critical); }
-
-  /* health */
-  h2 { font-size:16px; margin:0 0 10px; }
-  .health { display:flex; flex-wrap:wrap; gap:8px; }
-  .feed { display:inline-flex; gap:6px; align-items:baseline; background:var(--surface);
-          border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:13px; }
-  .feed .ok { color:var(--good); font-weight:700; }
-  .feed .fail { color:var(--critical); font-weight:700; }
-  .feed .manual { color:var(--muted); font-weight:700; }
-  .feed .detail { color:var(--muted); font-size:12px; }
-
-  /* toasts */
-  #toasts { position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
-            display:flex; flex-direction:column; gap:8px; z-index:50; }
-  .toast { background:var(--ink); color:var(--page); border-radius:8px; padding:10px 14px;
-           font-size:14px; display:flex; gap:14px; align-items:center; box-shadow:0 4px 16px rgba(0,0,0,.25); }
-  .toast button { background:transparent; border:0; color:#7db3f0; font-weight:600; }
-  #status { color:var(--ink-2); padding:24px 0; }
+  /* ---- responsive: cards reflow, never a squeezed table ---- */
+  @media (max-width:560px) {
+    .wrap { padding:16px 14px 56px; }
+    .card { grid-template-columns:auto minmax(0,1fr);
+            grid-template-areas:"tier company" "title title" "loc loc" "meta meta";
+            row-gap:3px; align-items:center; }
+    .c-meta { margin-top:4px; gap:6px; }
+    .c-meta .iconbtn:first-of-type { margin-left:auto; }
+    .count { margin-left:0; width:100%; }
+    .hero h1 { font-size:clamp(28px,9vw,40px); }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <!-- token setup screen (shown when no/invalid token) -->
-  <div id="setup" class="setup card" hidden>
-    <h1>🎯 Job Scanner — connect</h1>
-    <p class="sub">This page holds no data. It loads your postings live from your
-      private repo using a token you provide, kept only in this browser.</p>
-    <p><strong>Create a fine-grained token (one-time):</strong></p>
-    <ol>
-      <li>Open <a id="tokenLink" target="_blank" rel="noopener">GitHub → Fine-grained tokens → Generate new token</a>.</li>
-      <li>Name it (e.g. <code>job-dashboard</code>) and pick an expiration.</li>
-      <li>Resource owner: your account. Repository access: <strong>Only select repositories</strong> → choose <code id="repoName"></code>.</li>
-      <li>Permissions → Repository permissions → <strong>Contents: Read and write</strong>. (Metadata read is added automatically.) Nothing else.</li>
-      <li>Generate, copy the <code>github_pat_…</code> value, and paste it below.</li>
-    </ol>
-    <div id="setupErr" class="err" hidden></div>
-    <input id="tokenInput" type="password" placeholder="github_pat_…" autocomplete="off">
-    <button class="btn btn-primary" id="saveToken">Save &amp; connect</button>
+  <!-- token setup -->
+  <div id="setup" class="setup" hidden>
+    <div class="eyebrow">Job Scanner</div>
+    <h1>Connect your feed</h1>
+    <p>This page holds no data. It loads your postings live from your private repo
+       using a token you provide, kept only in this browser.</p>
+    <div class="panel">
+      <ol>
+        <li>Open <a id="tokenLink" target="_blank" rel="noopener" style="color:var(--accent);border-bottom:1px solid var(--accent-line)">GitHub → Fine-grained tokens → Generate</a>.</li>
+        <li>Name it <code>job-dashboard</code>, pick an expiration.</li>
+        <li>Repository access → <strong>Only select repositories</strong> → <code id="repoName"></code>.</li>
+        <li>Permissions → <strong>Contents: Read and write</strong>. Nothing else.</li>
+        <li>Generate, copy the <code>github_pat_…</code> value, paste below.</li>
+      </ol>
+      <input id="tokenInput" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+      <div id="setupErr" class="err" hidden></div>
+      <button class="btn-go" id="saveToken">Connect</button>
+    </div>
   </div>
 
-  <!-- main app -->
+  <!-- main -->
   <div id="main" hidden>
-    <div class="row-between">
-      <div>
-        <h1>🎯 Job Scanner</h1>
-        <p class="sub" id="lastScan"></p>
+    <div class="topbar">
+      <div class="brand"><b>Job Scanner</b></div>
+      <div class="tabs" id="tabs" role="tablist">
+        <button data-view="board" aria-selected="true">Board</button>
+        <button data-view="summary" aria-selected="false">Summary</button>
       </div>
-      <button class="btn" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
+      <button class="ghost" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
     </div>
-
-    <div class="tiles" id="tiles"></div>
-
-    <div class="filters">
-      <div class="seg" id="tierSeg" role="group" aria-label="Tier"></div>
-      <label>Company
-        <select id="companySel"><option value="">All</option></select>
-      </label>
-      <label><input type="checkbox" id="matchesOnly" checked> Matches only</label>
-      <label><input type="checkbox" id="newOnly"> New only</label>
-      <span class="count" id="rowCount"></span>
+    <div id="boardView">
+    <section id="hero" class="hero"></section>
+    <div id="stats" class="stats"></div>
+    <div class="toolbar">
+      <div class="seg" id="tierSeg" role="group" aria-label="Filter by tier"></div>
+      <select id="companySel" aria-label="Filter by company"><option value="">All companies</option></select>
+      <label class="toggle"><input type="checkbox" id="matchesOnly" checked> Matches only</label>
+      <label class="toggle"><input type="checkbox" id="newOnly"> New only</label>
+      <span class="count" id="count"></span>
     </div>
-
-    <div class="tablecard">
-      <table>
-        <thead><tr><th>Tier</th><th>Company</th><th>Role</th><th>First seen</th><th></th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
+    <details class="applied-sec" id="appliedSec" hidden>
+      <summary>Applied · <span id="appliedN">0</span></summary>
+      <div class="cards" id="appliedCards"></div>
+    </details>
+    <div id="cards" class="cards"></div>
+    <details class="health">
+      <summary>Feed health</summary>
+      <div class="health-grid" id="health"></div>
+    </details>
+    </div><!-- /boardView -->
+    <div id="summaryView" hidden>
+      <div id="summary" class="summary"></div>
     </div>
-
-    <h2>Feed health</h2>
-    <div class="health" id="health"></div>
   </div>
 
   <div id="status" hidden></div>
@@ -167,8 +335,8 @@
 
 <script>
   const CONFIG = {
-    owner: "bencschulze-byte", repo: "job-scanner",
-    dataPath: "dashboard.json", triagePath: "triage.yaml"
+    owner:"bencschulze-byte", repo:"job-scanner", dataPath:"dashboard.json",
+    triagePath:"triage.yaml", appliedPath:"applied.yaml"
   };
 </script>
 <script>
@@ -177,226 +345,329 @@
   const KEY = "jobscanner.pat";
   const $ = id => document.getElementById(id);
   const token = () => localStorage.getItem(KEY);
+  const esc = s => (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-  // --- GitHub REST helpers ---
-  const apiUrl = path =>
-    `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`;
-  const api = (path, opts = {}) => fetch(apiUrl(path), {
-    ...opts,
-    headers: {
-      Authorization: `Bearer ${token()}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...(opts.headers || {})
-    }
-  });
-  const b64decode = b64 => decodeURIComponent(escape(atob(b64.replace(/\s/g, ""))));
-  const b64encode = str => btoa(unescape(encodeURIComponent(str)));
-
-  async function loadFile(path) {
-    const r = await api(path);
-    if (r.status === 404) return { status: 404 };
-    if (!r.ok) throw { status: r.status };
+  // ---- GitHub REST ----
+  const apiUrl = p => `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${p}`;
+  const api = (p, opts={}) => fetch(apiUrl(p), { ...opts, headers:{
+    Authorization:`Bearer ${token()}`, Accept:"application/vnd.github+json",
+    "X-GitHub-Api-Version":"2022-11-28", ...(opts.headers||{}) } });
+  const b64dec = b => decodeURIComponent(escape(atob(b.replace(/\s/g,""))));
+  const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+  async function loadFile(p) {
+    const r = await api(p);
+    if (r.status === 404) return { status:404 };
+    if (!r.ok) throw { status:r.status };
     const j = await r.json();
-    return { status: 200, sha: j.sha, text: b64decode(j.content) };
+    return { status:200, sha:j.sha, text:b64dec(j.content) };
   }
 
-  // --- triage.yaml (simple list we own the format of) ---
-  function parseTriage(text) {
+  // ---- yaml list files (triage.yaml / applied.yaml) — we own the format ----
+  function parseList(t) {
     const ids = [];
-    for (const line of (text || "").split("\n")) {
-      const m = line.match(/^\s*-\s*(.*)$/);
-      if (!m) continue;
+    for (const line of (t||"").split("\n")) {
+      const m = line.match(/^\s*-\s*(.*)$/); if (!m) continue;
       let v = m[1].trim();
-      if (v.startsWith('"') && v.endsWith('"'))
-        v = v.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1).replace(/\\"/g,'"').replace(/\\\\/g,"\\");
       if (v) ids.push(v);
     }
     return ids;
   }
-  function serializeTriage(ids) {
-    const esc = s => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    return "# Dismissed postings — hidden on the dashboard. Managed by the app.\n"
-      + "dismissed:\n" + ids.map(id => `  - "${esc(id)}"`).join("\n") + "\n";
+  const serializeList = (key, ids) =>
+    `# Managed by the dashboard app.\n${key}:\n`
+    + ids.map(id => `  - "${id.replace(/\\/g,"\\\\").replace(/"/g,'\\"')}"`).join("\n") + "\n";
+
+  // ---- state (two client-owned lists: dismissed + applied) ----
+  let DATA=null;
+  const triage  = { path:CONFIG.triagePath,  key:"dismissed", set:new Set(), sha:null };
+  const applied = { path:CONFIG.appliedPath, key:"applied",   set:new Set(), sha:null };
+  const filters = { tier:"", company:"", matchesOnly:true, newOnly:false };
+
+  // ---- formatting ----
+  function relDate(iso, refIso) {
+    if (!iso) return "";
+    const d = new Date(iso+"T00:00:00"), ref = new Date((refIso||iso)+"T00:00:00");
+    const days = Math.round((ref - d)/86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return days+"d ago";
+    if (days < 30) return Math.floor(days/7)+"w ago";
+    if (days < 365) return Math.floor(days/30)+"mo ago";
+    return Math.floor(days/365)+"y ago";
   }
+  function heroDate(iso) {
+    if (!iso) return "";
+    return new Date(iso+"T00:00:00").toLocaleDateString(undefined,
+      { weekday:"short", month:"short", day:"numeric" });
+  }
+  const joinNames = a =>
+    a.length <= 1 ? (a[0]||"") :
+    a.length === 2 ? `${a[0]} and ${a[1]}` :
+    a.length <= 4 ? `${a.slice(0,-1).join(", ")}, and ${a[a.length-1]}` :
+    `${a.slice(0,3).join(", ")}, and ${a.length-3} more`;
 
-  // --- state ---
-  let DATA = null;
-  let triageIds = [];
-  let triageSha = null;
-  let dismissed = new Set();
-  const filters = { tier: "", company: "", matchesOnly: true, newOnly: false };
-
-  const esc = s => (s || "").replace(/[&<>"]/g,
-    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-  // --- screens ---
+  // ---- screens ----
   function show(which, msg) {
-    $("setup").hidden = which !== "setup";
-    $("main").hidden = which !== "main";
-    $("status").hidden = which !== "status";
-    if (which === "status") $("status").textContent = msg || "";
+    $("setup").hidden = which!=="setup"; $("main").hidden = which!=="main";
+    $("status").hidden = which!=="status";
+    if (which==="status") $("status").textContent = msg||"";
   }
-  function showSetup(errMsg) {
+  function showSetup(err) {
     $("repoName").textContent = `${CONFIG.owner}/${CONFIG.repo}`;
     $("tokenLink").href = "https://github.com/settings/personal-access-tokens/new";
-    const e = $("setupErr");
-    e.hidden = !errMsg; e.textContent = errMsg || "";
+    $("setupErr").hidden = !err; $("setupErr").textContent = err||"";
     show("setup");
   }
 
-  // --- boot: load data + triage ---
+  // ---- boot ----
   async function boot() {
     if (!token()) return showSetup();
-    show("status", "Loading your postings…");
+    show("status","Loading your brief…");
     try {
       const d = await loadFile(CONFIG.dataPath);
-      if (d.status === 404)
-        return show("status", "No scan data found yet — run a scan first.");
+      if (d.status === 404) return show("status","No scan data yet — run a scan first.");
       DATA = JSON.parse(d.text);
-      const t = await loadFile(CONFIG.triagePath);
-      triageIds = t.status === 404 ? [] : parseTriage(t.text);
-      triageSha = t.status === 404 ? null : t.sha;
-      dismissed = new Set(triageIds);
-      renderShell();
-      show("main");
-    } catch (err) {
-      if (err.status === 401)
-        return showSetup("That token was rejected (invalid or expired). Paste a fresh one.");
-      show("status", "Could not load data (error " + (err.status || "network") + ").");
+      for (const store of [triage, applied]) {
+        const t = await loadFile(store.path);
+        store.set = new Set(t.status===404 ? [] : parseList(t.text));
+        store.sha = t.status===404 ? null : t.sha;
+      }
+      renderShell(); show("main");
+    } catch (e) {
+      if (e.status === 401) return showSetup("That token was rejected (invalid or expired). Paste a fresh one.");
+      show("status","Couldn't load data (error "+(e.status||"network")+").");
     }
   }
 
-  // --- render ---
-  function renderShell() {
-    $("lastScan").textContent = "Last scan: " + (DATA.last_scan || "—");
-    const s = DATA.stats;
-    $("tiles").innerHTML = [
-      ["Open matches", s.open_matches],
-      ["New matches this scan", s.new_matches],
-      ["Feeds healthy", `${s.feeds_ok}<small> / ${s.feeds_auto}</small>`],
-      ["Open postings tracked", s.total_open.toLocaleString()]
-    ].map(([l, v]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("");
+  // ---- render ----
+  function stats() {
+    const m = DATA.rows.filter(r => r.match);
+    const dis = m.filter(r => triage.set.has(r.id)).length;
+    const app = m.filter(r => applied.set.has(r.id) && !triage.set.has(r.id)).length;
+    const nw = m.filter(r => r.new && !triage.set.has(r.id) && !applied.set.has(r.id));
+    return { total:m.length, dismissed:dis, applied:app, openLive:m.length-dis-app, newRows:nw };
+  }
 
+  function renderShell() {
+    const st = stats();
+    const hero = $("hero");
+    if (st.newRows.length) {
+      const cos = [...new Set(st.newRows.map(r => r.company))], n = st.newRows.length;
+      hero.className = "hero has-new";
+      hero.innerHTML =
+        `<div class="eyebrow">Today · ${esc(heroDate(DATA.last_scan))}</div>
+         <h1><span class="n">${n}</span> new match${n>1?"es":""} for you</h1>
+         <p class="sub">Fresh at ${esc(joinNames(cos))}. <a href="#" id="jumpNew">See them ↓</a></p>`;
+      $("jumpNew").onclick = e => {
+        e.preventDefault();
+        $("newOnly").checked = true; filters.newOnly = true; filters.matchesOnly = true;
+        $("matchesOnly").checked = true; renderRows();
+        $("cards").scrollIntoView({ behavior:"smooth", block:"start" });
+      };
+    } else {
+      hero.className = "hero no-new";
+      hero.innerHTML =
+        `<div class="eyebrow">Today · ${esc(heroDate(DATA.last_scan))}</div>
+         <h1>Nothing new today</h1>
+         <p class="sub">You're all caught up — ${st.openLive} open match${st.openLive===1?"":"es"} still on your board.</p>`;
+    }
+    const ds = DATA.stats;
+    $("stats").innerHTML =
+      `<span><b>${st.openLive}</b> open matches</span>
+       <span><b>${ds.feeds_ok}/${ds.feeds_auto}</b> feeds healthy</span>
+       <span><b>${ds.total_open.toLocaleString()}</b> postings tracked</span>`;
     const seg = $("tierSeg");
-    seg.innerHTML = `<button data-tier="" aria-pressed="true">All tiers</button>` +
-      DATA.tiers.map(t => `<button data-tier="${t}" aria-pressed="false">Tier ${t}</button>`).join("");
+    seg.innerHTML = `<button data-tier="" aria-pressed="true">All</button>` +
+      DATA.tiers.map(t => `<button data-tier="${t}" aria-pressed="false">T${t}</button>`).join("");
     seg.onclick = e => {
       const b = e.target.closest("button"); if (!b) return;
       filters.tier = b.dataset.tier;
-      for (const x of seg.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
+      for (const x of seg.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x===b));
       renderRows();
     };
-    $("companySel").innerHTML = `<option value="">All</option>` +
+    $("companySel").innerHTML = `<option value="">All companies</option>` +
       DATA.companies.map(c => `<option>${esc(c)}</option>`).join("");
     $("companySel").onchange = e => { filters.company = e.target.value; renderRows(); };
     $("matchesOnly").onchange = e => { filters.matchesOnly = e.target.checked; renderRows(); };
     $("newOnly").onchange = e => { filters.newOnly = e.target.checked; renderRows(); };
-
     $("health").innerHTML = DATA.health.map(h => {
-      const label = h.state === "ok" ? '<span class="ok">✓ ok</span>'
-        : h.state === "fail" ? '<span class="fail">✗ fail</span>'
-          : '<span class="manual">– manual</span>';
-      return `<span class="feed" title="${esc(h.detail)}">${label} ${esc(h.company)} <span class="detail">${esc(h.detail)}</span></span>`;
+      const dot = h.state==="ok" ? '<span class="ok">●</span>'
+        : h.state==="fail" ? '<span class="down">●</span>' : '<span class="man">○</span>';
+      return `<span class="feed" title="${esc(h.detail)}">${dot} ${esc(h.company)}</span>`;
     }).join("");
-
+    $("tabs").onclick = e => {
+      const b = e.target.closest("button"); if (!b) return;
+      for (const x of $("tabs").querySelectorAll("button"))
+        x.setAttribute("aria-selected", String(x===b));
+      $("boardView").hidden = b.dataset.view !== "board";
+      $("summaryView").hidden = b.dataset.view !== "summary";
+    };
     renderRows();
   }
 
-  function visibleRows() {
+  const byTier = (a,b) => a.tier - b.tier
+    || a.company.localeCompare(b.company) || a.title.localeCompare(b.title);
+  function openRows() {
     return DATA.rows.filter(r =>
-      !dismissed.has(r.id) &&
-      (filters.tier === "" || r.tier === Number(filters.tier)) &&
-      (filters.company === "" || r.company === filters.company) &&
+      !triage.set.has(r.id) && !applied.set.has(r.id) &&
+      (filters.tier==="" || r.tier===Number(filters.tier)) &&
+      (filters.company==="" || r.company===filters.company) &&
       (!filters.matchesOnly || r.match) &&
-      (!filters.newOnly || r.new));
+      (!filters.newOnly || r.new)).sort(byTier);
+  }
+  const appliedRows = () =>
+    DATA.rows.filter(r => applied.set.has(r.id) && !triage.set.has(r.id)).sort(byTier);
+
+  const IC = {
+    x:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>',
+    check:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>',
+    back:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l-5 5 5 5M4 10h9a4 4 0 0 1 0 8h-1"/></svg>'
+  };
+
+  function card(r, mode) {
+    const tag = mode==="applied" ? '<span class="appliedtag">Applied</span>'
+      : (r.new ? '<span class="newtag">New</span>' : '');
+    const near = r.match ? "" : ' <span style="text-transform:none;letter-spacing:0;color:var(--faint)">near-miss</span>';
+    const sal = r.salary ? `<span class="c-sal">${esc(r.salary)}</span>` : "";
+    const actions = mode==="applied"
+      ? `<button class="iconbtn c-back" data-unapply="${esc(r.id)}" aria-label="Move back to open">${IC.back}</button>`
+      : `<button class="iconbtn c-apply" data-apply="${esc(r.id)}" aria-label="Mark ${esc(r.title)} as applied">${IC.check}</button>`
+        + `<button class="iconbtn c-dismiss" data-dismiss="${esc(r.id)}" aria-label="Dismiss ${esc(r.title)}">${IC.x}</button>`;
+    const cls = mode==="applied" ? "card is-applied" : ("card" + (r.new ? " is-new" : ""));
+    return `<article class="${cls}" data-id="${esc(r.id)}">
+      <div class="c-tier"><span class="tier t${r.tier}">T${r.tier}</span></div>
+      <div class="c-company">${esc(r.company)}${tag}${near}</div>
+      <a class="c-title" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+      <div class="c-loc" title="${esc(r.location_full||"")}">${esc(r.location||"—")}${r.loc_more?` <span class="more">+${r.loc_more} more</span>`:""}${sal}</div>
+      <div class="c-meta"><span class="c-date">${esc(relDate(r.first_seen, DATA.last_scan))}</span>${actions}</div>
+    </article>`;
   }
 
   function renderRows() {
-    const rows = visibleRows();
-    $("rows").innerHTML = rows.map(r => `
-      <tr class="${r.new ? "new" : ""}" data-id="${esc(r.id)}">
-        <td class="tier">${r.tier}</td>
-        <td>${esc(r.company)}</td>
-        <td>
-          <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
-          ${r.new ? '<span class="chip">NEW</span>' : ""}
-          ${r.match ? "" : ' <span class="nearmiss">(near-miss)</span>'}
-          <div class="loc">${esc(r.location)}</div>
-        </td>
-        <td class="date">${esc(r.first_seen)}</td>
-        <td><button class="dismiss" data-dismiss="${esc(r.id)}">Dismiss</button></td>
-      </tr>`).join("");
-    $("rows").querySelectorAll("[data-dismiss]").forEach(b =>
-      b.onclick = () => dismiss(b.dataset.dismiss));
-    $("rowCount").textContent = `${rows.length} shown`;
+    const open = openRows(), app = appliedRows();
+    $("cards").innerHTML = open.length ? open.map(r => card(r,"open")).join("")
+      : `<div class="empty">Nothing here with these filters.</div>`;
+    $("appliedSec").hidden = app.length === 0;
+    $("appliedN").textContent = app.length;
+    $("appliedCards").innerHTML = app.map(r => card(r,"applied")).join("");
+    document.querySelectorAll("[data-apply]").forEach(b => b.onclick = () => act("apply", b.dataset.apply));
+    document.querySelectorAll("[data-dismiss]").forEach(b => b.onclick = () => act("dismiss", b.dataset.dismiss));
+    document.querySelectorAll("[data-unapply]").forEach(b => b.onclick = () => {
+      applied.set.delete(b.dataset.unapply); renderRows(); commit(applied);
+    });
+    const st = stats();
+    $("count").innerHTML = `${open.length} shown`
+      + (st.applied ? ` <span class="dismissed">· ${st.applied} applied</span>` : "")
+      + (st.dismissed ? ` <span class="dismissed">· ${st.dismissed} dismissed</span>` : "");
+    renderSummary();
   }
 
-  // --- dismiss: optimistic hide + undo toast + delayed commit ---
-  function dismiss(id) {
-    dismissed.add(id);
-    renderRows();
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.innerHTML = `<span>Dismissed.</span>`;
-    const undo = document.createElement("button");
-    undo.textContent = "Undo";
-    toast.appendChild(undo);
-    $("toasts").appendChild(toast);
-
-    const timer = setTimeout(() => { toast.remove(); commitDismiss(id); }, 5000);
-    undo.onclick = () => {
-      clearTimeout(timer);
-      dismissed.delete(id);
-      toast.remove();
-      renderRows();
+  // ---- Summary tab: applied / open / dismissed / non-match, by tier ----
+  function renderSummary() {
+    if (!DATA.company_meta) { $("summary").innerHTML = ""; return; }
+    const per = {};
+    for (const c of DATA.company_meta)
+      per[c.name] = { name:c.name, tier:c.tier, blurb:c.blurb,
+                      open_total:c.open_total, A:0, O:0, D:0 };
+    for (const r of DATA.rows) {
+      if (!r.match) continue;
+      const p = per[r.company]; if (!p) continue;
+      if (applied.set.has(r.id)) p.A++;
+      else if (triage.set.has(r.id)) p.D++;
+      else p.O++;
+    }
+    const tiers = {};
+    for (const name in per) {
+      const p = per[name];
+      p.N = Math.max(0, p.open_total - (p.A + p.O + p.D));
+      const g = tiers[p.tier] || (tiers[p.tier] = { A:0,O:0,D:0,N:0,total:0,companies:[] });
+      g.A+=p.A; g.O+=p.O; g.D+=p.D; g.N+=p.N; g.total+=p.open_total; g.companies.push(p);
+    }
+    const bar = (A,O,D) => {
+      const m = A+O+D; if (!m) return `<div class="bar"></div>`;
+      const w = n => (100*n/m).toFixed(1)+"%";
+      return `<div class="bar">`
+        + (A?`<span class="b-app" style="width:${w(A)}"></span>`:"")
+        + (O?`<span class="b-open" style="width:${w(O)}"></span>`:"")
+        + (D?`<span class="b-dis" style="width:${w(D)}"></span>`:"") + `</div>`;
     };
+    const nums = (A,O,D) =>
+      `<span class="swatch sw-app"></span><span class="np">${A}</span> `
+      + `<span class="swatch sw-open"></span><span class="np">${O}</span> `
+      + `<span class="swatch sw-dis"></span><span class="np">${D}</span>`;
+    const blocks = Object.keys(tiers).sort().map(t => {
+      const g = tiers[t];
+      const comps = g.companies.sort((a,b) =>
+        (b.A+b.O+b.D)-(a.A+a.O+a.D) || b.open_total-a.open_total || a.name.localeCompare(b.name));
+      return `<div class="tblock">
+        <div class="tblock-head"><h3>Tier ${t}</h3>
+          <span class="funnel">${g.A+g.O+g.D} matched of ${g.total.toLocaleString()} sourced</span></div>
+        <div class="legend">
+          <span><span class="swatch sw-app"></span><b>${g.A}</b> applied</span>
+          <span><span class="swatch sw-open"></span><b>${g.O}</b> open</span>
+          <span><span class="swatch sw-dis"></span><b>${g.D}</b> dismissed</span>
+          <span class="nonmatch">${g.N.toLocaleString()} non-matching</span>
+        </div>
+        ${bar(g.A,g.O,g.D)}
+        <details class="companies"><summary>${comps.length} companies</summary>
+          ${comps.map((p,i) => `<div class="crow${i===0?" first":""}">
+            <div class="cname">${esc(p.name)}</div>
+            <div class="cnums">${nums(p.A,p.O,p.D)} · <span class="np">${p.N.toLocaleString()}</span> non-match</div>
+            <div class="cblurb">${esc(p.blurb||"")}</div>
+            <div class="cbar">${bar(p.A,p.O,p.D)}</div></div>`).join("")}
+        </details></div>`;
+    }).join("");
+    $("summary").innerHTML =
+      `<p style="color:var(--muted);font-size:13px;margin:2px 0 2px">Your funnel by tier — open matches split into applied / open / dismissed, plus everything sourced that didn't match.</p>`
+      + blocks;
   }
 
-  // serialize writes so shas stay consistent
+  // ---- apply / dismiss: optimistic + undo + delayed commit ----
+  function act(kind, id) {
+    const store = kind==="apply" ? applied : triage;
+    store.set.add(id);
+    if (kind==="apply") triage.set.delete(id);   // applying un-dismisses
+    renderRows();
+    const msg = kind==="apply" ? "Marked as applied." : "Dismissed — hidden from your board.";
+    const t = document.createElement("div"); t.className = "toast";
+    t.innerHTML = `<span>${msg}</span>`;
+    const undo = document.createElement("button"); undo.textContent = "Undo"; t.appendChild(undo);
+    $("toasts").appendChild(t);
+    const timer = setTimeout(() => { t.remove(); commit(store); }, 5000);
+    undo.onclick = () => { clearTimeout(timer); store.set.delete(id); t.remove(); renderRows(); };
+  }
+
+  // serialized commit of a client-owned yaml list; on failure, resync to server
   let chain = Promise.resolve();
-  function commitDismiss(id) {
+  function commit(store) {
     chain = chain.then(async () => {
-      if (!triageIds.includes(id)) triageIds.push(id);
-      const put = sha => api(CONFIG.triagePath, {
-        method: "PUT",
-        body: JSON.stringify({
-          message: `Dismiss ${id}`,
-          content: b64encode(serializeTriage(triageIds)),
-          ...(sha ? { sha } : {})
-        })
-      });
-      let r = await put(triageSha);
-      if (r.status === 409) {                     // sha stale (scan committed meanwhile)
-        const t = await loadFile(CONFIG.triagePath);
-        triageIds = Array.from(new Set([...(t.text ? parseTriage(t.text) : []), id]));
-        triageSha = t.sha || null;
-        r = await put(triageSha);
+      const ids = [...store.set];
+      const put = sha => api(store.path, { method:"PUT", body:JSON.stringify({
+        message:`Update ${store.key}`, content:b64enc(serializeList(store.key, ids)), ...(sha?{sha}:{}) }) });
+      let r = await put(store.sha);
+      if (r.status === 409) {
+        const f = await loadFile(store.path); store.sha = f.sha || null; r = await put(store.sha);
       }
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      triageSha = (await r.json()).content.sha;
-    }).catch(err => {
-      // saving failed — surface it and un-hide so nothing is silently lost
-      dismissed.delete(id);
-      triageIds = triageIds.filter(x => x !== id);
-      renderRows();
-      const t = document.createElement("div");
-      t.className = "toast";
-      t.textContent = "⚠️ Could not save dismissal (" + err.message + "). Restored.";
-      $("toasts").appendChild(t);
-      setTimeout(() => t.remove(), 6000);
+      if (!r.ok) throw new Error("HTTP "+r.status);
+      store.sha = (await r.json()).content.sha;
+    }).catch(async err => {
+      try {
+        const f = await loadFile(store.path);
+        store.set = new Set(f.status===404 ? [] : parseList(f.text));
+        store.sha = f.status===404 ? null : f.sha; renderRows();
+      } catch (_) {}
+      const t = document.createElement("div"); t.className = "toast";
+      t.textContent = "Couldn't save that change ("+err.message+") — reverted.";
+      $("toasts").appendChild(t); setTimeout(() => t.remove(), 6000);
     });
   }
 
-  // --- wire setup controls ---
+  // ---- setup controls ----
   $("saveToken").onclick = () => {
-    const v = $("tokenInput").value.trim();
-    if (!v) return;
-    localStorage.setItem(KEY, v);
-    $("tokenInput").value = "";
-    boot();
+    const v = $("tokenInput").value.trim(); if (!v) return;
+    localStorage.setItem(KEY, v); $("tokenInput").value = ""; boot();
   };
-  $("tokenInput").addEventListener("keydown", e => { if (e.key === "Enter") $("saveToken").click(); });
+  $("tokenInput").addEventListener("keydown", e => { if (e.key==="Enter") $("saveToken").click(); });
   $("resetToken").onclick = () => { localStorage.removeItem(KEY); showSetup(); };
 
   boot();
