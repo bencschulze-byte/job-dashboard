@@ -241,6 +241,8 @@
   .tname { font-weight:500; }
   .tfeed { font-family:var(--mono); font-size:11px; color:var(--muted); }
   .tnote { font-family:var(--mono); font-size:11px; color:var(--ok); margin-left:auto; }
+  .tfeed-warn { color:var(--down); }
+  .tnote-warn { color:var(--down); margin-left:auto; }
 
   /* ---- feed health (quiet, collapsed) ---- */
   details.health { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
@@ -671,9 +673,10 @@
   }
 
   // ---- Discovery tab: accept (start scanning it) / reject (never again) ----
-  function feedBadge(f) {
-    if (!f || f.status !== "auto")
-      return `<span class="fbadge fb-none">no feed found</span>`;
+  function feedBadge(s) {
+    const f = s.feed || {};
+    if (!s.scannable)
+      return `<span class="fbadge fb-none" title="No pollable feed found — accepting this company won't scan it until a feed is set up manually">no feed found — needs manual setup</span>`;
     const unverified = f.how === "pattern-guess" && f.ats_type !== "greenhouse";
     return `<span class="fbadge fb-ok">feed: ${esc(f.ats_type)}</span>`
       + (unverified ? ` <span class="fbadge fb-warn" title="Guessed from the company name — confirm the board really belongs to this company before trusting it">⚠ unverified</span>` : "");
@@ -690,15 +693,16 @@
           <button class="btn-reject" data-reject="${esc(s.normalized)}" aria-label="Reject ${esc(s.name)}">${IC.x} Reject</button>
         </div>
       </div>
-      <div class="sc-feed">${feedBadge(s.feed)}</div>
+      <div class="sc-feed">${feedBadge(s)}</div>
       <ul class="sc-posts">${posts}</ul>
     </article>`;
   }
   const trackingRow = s => {
     const f = s.feed || {};
-    return `<div class="trow"><span class="tname">${esc(s.name)}</span>`
-      + `<span class="tfeed">${f.status==="auto" ? esc(f.ats_type) : "no feed"}</span>`
-      + `<span class="tnote">now in your scan</span></div>`;
+    const state = s.scannable
+      ? `<span class="tfeed">${esc(f.ats_type)}</span><span class="tnote">now in your scan</span>`
+      : `<span class="tfeed tfeed-warn">⚠ no feed</span><span class="tnote tnote-warn">needs manual setup</span>`;
+    return `<div class="trow"><span class="tname">${esc(s.name)}</span>${state}</div>`;
   };
   function renderDiscovery() {
     const sugs = DATA.suggestions || [];
