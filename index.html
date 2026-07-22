@@ -203,6 +203,45 @@
 
   .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:14px; }
 
+  /* ---- discovery tab ---- */
+  .tabcount { display:inline-block; min-width:15px; margin-left:5px; padding:0 5px;
+              border-radius:9px; background:var(--accent); color:#fff; font-family:var(--mono);
+              font-size:10px; font-weight:600; line-height:15px; vertical-align:middle; }
+  .tabs button[aria-selected="true"] .tabcount { background:var(--page); color:var(--ink); }
+  .discovery { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .disc-intro { color:var(--ink-2); font-size:14px; margin:2px 0 8px; max-width:72ch; }
+  .scard { background:var(--surface); border:1px solid var(--line); border-radius:12px;
+           padding:14px 16px; box-shadow:var(--shadow); }
+  .scard-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .sc-name { font-family:var(--serif); font-weight:500; font-size:18px; color:var(--ink);
+             line-height:1.2; }
+  .sc-actions { display:flex; gap:8px; flex-shrink:0; }
+  .btn-accept, .btn-reject { display:inline-flex; align-items:center; gap:5px; border-radius:8px;
+    border:1px solid var(--line-2); padding:5px 11px; font-size:13px; font-weight:500;
+    background:var(--surface); color:var(--ink-2); }
+  .btn-accept svg, .btn-reject svg { width:14px; height:14px; }
+  .btn-accept:hover, .btn-accept:focus-visible { border-color:var(--ok); color:var(--ok); }
+  .btn-reject:hover, .btn-reject:focus-visible { border-color:var(--down); color:var(--down); }
+  .sc-feed { margin:9px 0 2px; }
+  .fbadge { font-family:var(--mono); font-size:11px; letter-spacing:.02em; border-radius:5px;
+            padding:1px 7px; white-space:nowrap; }
+  .fb-ok { color:var(--ok); border:1px solid rgba(46,158,91,.4); }
+  .fb-none { color:var(--muted); border:1px solid var(--line-2); }
+  .fb-warn { color:var(--down); border:1px solid rgba(214,69,69,.4); margin-left:4px; }
+  .sc-posts { list-style:none; margin:11px 0 0; padding:0; display:flex; flex-direction:column;
+              gap:5px; }
+  .sc-posts li { display:flex; flex-wrap:wrap; gap:2px 10px; align-items:baseline; font-size:14px; }
+  .sc-posts a { color:var(--ink); font-weight:500; }
+  .sc-posts a:hover { color:var(--accent); text-decoration:underline; text-underline-offset:2px; }
+  .sp-loc { font-size:12.5px; color:var(--ink-2); }
+  .disc-tracking { display:flex; flex-direction:column; gap:4px; padding:6px 0; }
+  .trow { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; font-size:14px;
+          padding:6px 11px; background:var(--surface); border:1px solid var(--line);
+          border-radius:9px; }
+  .tname { font-weight:500; }
+  .tfeed { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .tnote { font-family:var(--mono); font-size:11px; color:var(--ok); margin-left:auto; }
+
   /* ---- feed health (quiet, collapsed) ---- */
   details.health { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
   details.health summary { font-family:var(--mono); font-size:12px; letter-spacing:.08em;
@@ -301,6 +340,7 @@
       <div class="tabs" id="tabs" role="tablist">
         <button data-view="board" aria-selected="true">Board</button>
         <button data-view="summary" aria-selected="false">Summary</button>
+        <button data-view="discovery" aria-selected="false">Discovery</button>
       </div>
       <button class="ghost" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
     </div>
@@ -327,6 +367,9 @@
     <div id="summaryView" hidden>
       <div id="summary" class="summary"></div>
     </div>
+    <div id="discoveryView" hidden>
+      <div id="discovery" class="discovery"></div>
+    </div>
   </div>
 
   <div id="status" hidden></div>
@@ -336,7 +379,8 @@
 <script>
   const CONFIG = {
     owner:"bencschulze-byte", repo:"job-scanner", dataPath:"dashboard.json",
-    triagePath:"triage.yaml", appliedPath:"applied.yaml"
+    triagePath:"triage.yaml", appliedPath:"applied.yaml",
+    acceptedPath:"discovery_accepted.yaml", rejectedPath:"discovery_rejected.yaml"
   };
 </script>
 <script>
@@ -377,10 +421,12 @@
     `# Managed by the dashboard app.\n${key}:\n`
     + ids.map(id => `  - "${id.replace(/\\/g,"\\\\").replace(/"/g,'\\"')}"`).join("\n") + "\n";
 
-  // ---- state (two client-owned lists: dismissed + applied) ----
+  // ---- state (client-owned lists: dismissed, applied, and discovery accept/reject) ----
   let DATA=null;
-  const triage  = { path:CONFIG.triagePath,  key:"dismissed", set:new Set(), sha:null };
-  const applied = { path:CONFIG.appliedPath, key:"applied",   set:new Set(), sha:null };
+  const triage   = { path:CONFIG.triagePath,   key:"dismissed", set:new Set(), sha:null };
+  const applied  = { path:CONFIG.appliedPath,  key:"applied",   set:new Set(), sha:null };
+  const accepted = { path:CONFIG.acceptedPath, key:"accepted",  set:new Set(), sha:null };
+  const rejected = { path:CONFIG.rejectedPath, key:"rejected",  set:new Set(), sha:null };
   const filters = { tier:"", company:"", matchesOnly:true, newOnly:false };
 
   // ---- formatting ----
@@ -427,7 +473,7 @@
       const d = await loadFile(CONFIG.dataPath);
       if (d.status === 404) return show("status","No scan data yet — run a scan first.");
       DATA = JSON.parse(d.text);
-      for (const store of [triage, applied]) {
+      for (const store of [triage, applied, accepted, rejected]) {
         const t = await loadFile(store.path);
         store.set = new Set(t.status===404 ? [] : parseList(t.text));
         store.sha = t.status===404 ? null : t.sha;
@@ -501,8 +547,10 @@
         x.setAttribute("aria-selected", String(x===b));
       $("boardView").hidden = b.dataset.view !== "board";
       $("summaryView").hidden = b.dataset.view !== "summary";
+      $("discoveryView").hidden = b.dataset.view !== "discovery";
     };
     renderRows();
+    renderDiscovery();
   }
 
   const byTier = (a,b) => a.tier - b.tier
@@ -620,6 +668,77 @@
     $("summary").innerHTML =
       `<p style="color:var(--muted);font-size:13px;margin:2px 0 2px">Your funnel by tier — open matches split into applied / open / dismissed, plus everything sourced that didn't match.</p>`
       + blocks;
+  }
+
+  // ---- Discovery tab: accept (start scanning it) / reject (never again) ----
+  function feedBadge(f) {
+    if (!f || f.status !== "auto")
+      return `<span class="fbadge fb-none">no feed found</span>`;
+    const unverified = f.how === "pattern-guess" && f.ats_type !== "greenhouse";
+    return `<span class="fbadge fb-ok">feed: ${esc(f.ats_type)}</span>`
+      + (unverified ? ` <span class="fbadge fb-warn" title="Guessed from the company name — confirm the board really belongs to this company before trusting it">⚠ unverified</span>` : "");
+  }
+  function suggestionCard(s) {
+    const posts = (s.postings||[]).map(p =>
+      `<li><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`
+      + (p.location ? `<span class="sp-loc">${esc(p.location)}</span>` : "") + `</li>`).join("");
+    return `<article class="scard">
+      <div class="scard-head">
+        <div class="sc-name">${esc(s.name)}</div>
+        <div class="sc-actions">
+          <button class="btn-accept" data-accept="${esc(s.normalized)}" aria-label="Accept ${esc(s.name)}">${IC.check} Accept</button>
+          <button class="btn-reject" data-reject="${esc(s.normalized)}" aria-label="Reject ${esc(s.name)}">${IC.x} Reject</button>
+        </div>
+      </div>
+      <div class="sc-feed">${feedBadge(s.feed)}</div>
+      <ul class="sc-posts">${posts}</ul>
+    </article>`;
+  }
+  const trackingRow = s => {
+    const f = s.feed || {};
+    return `<div class="trow"><span class="tname">${esc(s.name)}</span>`
+      + `<span class="tfeed">${f.status==="auto" ? esc(f.ats_type) : "no feed"}</span>`
+      + `<span class="tnote">now in your scan</span></div>`;
+  };
+  function renderDiscovery() {
+    const sugs = DATA.suggestions || [];
+    const isRej = s => rejected.set.has(s.normalized);
+    const isAcc = s => accepted.set.has(s.normalized) || s.status === "added";
+    const pending  = sugs.filter(s => !isRej(s) && !isAcc(s));
+    const tracking = sugs.filter(s => isAcc(s) && !isRej(s));
+    const tab = $("tabs").querySelector('[data-view="discovery"]');
+    if (tab) tab.innerHTML = "Discovery"
+      + (pending.length ? ` <span class="tabcount">${pending.length}</span>` : "");
+    let html = `<p class="disc-intro">Companies not yet tracked that are posting roles matching your filters. <b>Accept</b> to start scanning a company — its jobs join your board within a day; <b>Reject</b> to never see it again.</p>`;
+    html += pending.length ? pending.map(suggestionCard).join("")
+          : `<div class="empty">No new suggestions to review. 🎉</div>`;
+    if (tracking.length)
+      html += `<details class="applied-sec" open><summary>Now tracking · ${tracking.length}</summary>`
+            + `<div class="disc-tracking">${tracking.map(trackingRow).join("")}</div></details>`;
+    const host = $("discovery");
+    host.innerHTML = html;
+    host.querySelectorAll("[data-accept]").forEach(b => b.onclick = () => decide("accept", b.dataset.accept));
+    host.querySelectorAll("[data-reject]").forEach(b => b.onclick = () => decide("reject", b.dataset.reject));
+  }
+  // accept and reject are mutually exclusive; optimistic + 5s undo, like dismiss
+  function decide(kind, norm) {
+    const store = kind==="accept" ? accepted : rejected;
+    const other = kind==="accept" ? rejected : accepted;
+    store.set.add(norm);
+    const changedOther = other.set.delete(norm);
+    renderDiscovery();
+    const msg = kind==="accept" ? "Accepted — added to your scan."
+                                : "Rejected — you won't see it again.";
+    const t = document.createElement("div"); t.className = "toast";
+    t.innerHTML = `<span>${msg}</span>`;
+    const undo = document.createElement("button"); undo.textContent = "Undo"; t.appendChild(undo);
+    $("toasts").appendChild(t);
+    const timer = setTimeout(() => { t.remove(); commit(store); if (changedOther) commit(other); }, 5000);
+    undo.onclick = () => {
+      clearTimeout(timer); store.set.delete(norm);
+      if (changedOther) other.set.add(norm);
+      t.remove(); renderDiscovery();
+    };
   }
 
   // ---- apply / dismiss: optimistic + undo + delayed commit ----
