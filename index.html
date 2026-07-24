@@ -244,6 +244,46 @@
   .tfeed-warn { color:var(--down); }
   .tnote-warn { color:var(--down); margin-left:auto; }
 
+  /* ---- interview prep tab ---- */
+  .prep { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .prep-intro { display:flex; flex-wrap:wrap; align-items:baseline;
+                justify-content:space-between; gap:4px 16px; margin:2px 0 4px; }
+  .prep-intro p { color:var(--ink-2); font-size:14px; margin:0; max-width:66ch; }
+  .prep-synced { font-family:var(--mono); font-size:11.5px; color:var(--muted);
+                 white-space:nowrap; }
+  .prep-filter input { width:100%; font-family:var(--sans); font-size:14px;
+                       padding:9px 12px; margin:4px 0 6px; border:1px solid var(--line-2);
+                       border-radius:9px; background:var(--surface); color:var(--ink); }
+  .prep-filter input::placeholder { color:var(--faint); }
+  .prep-filter input:focus-visible { outline:2px solid var(--accent); outline-offset:1px;
+                                     border-color:var(--accent); }
+  .prep-cards { display:flex; flex-direction:column; gap:8px; }
+
+  details.qcard { background:var(--surface); border:1px solid var(--line);
+                  border-radius:12px; box-shadow:var(--shadow); }
+  details.qcard > summary { display:flex; align-items:baseline; gap:11px; cursor:pointer;
+                            list-style:none; padding:14px 16px; }
+  details.qcard > summary::-webkit-details-marker { display:none; }
+  details.qcard > summary::before { content:"▸"; color:var(--faint);
+                                    font-family:var(--mono); font-size:12px;
+                                    position:relative; top:-1px; }
+  details.qcard[open] > summary::before { content:"▾"; }
+  .qcard .q-text { font-family:var(--serif); font-weight:500; font-size:18px;
+                   color:var(--ink); line-height:1.3; text-wrap:balance; }
+  .qcard .q-body { padding:2px 16px 16px 33px; }
+  .qcard .q-answer p { margin:0 0 11px; color:var(--ink); font-size:15px;
+                       line-height:1.6; max-width:68ch; }
+  .qcard .q-answer p:last-child { margin-bottom:0; }
+  .qcard .q-muted { color:var(--muted); font-style:italic; }
+  /* delivery notes — a stage-direction aside, deliberately quieter than the script */
+  .qcard .q-notes { margin-top:14px; background:var(--raised); border:1px solid var(--line);
+                    border-left:3px solid var(--line-2); border-radius:8px; padding:11px 14px; }
+  .qcard .q-notes-label { font-family:var(--mono); font-size:11px; letter-spacing:.08em;
+                          text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
+  .qcard .q-notes p { margin:0 0 8px; color:var(--ink-2); font-size:13.5px;
+                      line-height:1.55; max-width:68ch; }
+  .qcard .q-notes p:last-child { margin-bottom:0; }
+
   /* ---- feed health (quiet, collapsed) ---- */
   details.health { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
   details.health summary { font-family:var(--mono); font-size:12px; letter-spacing:.08em;
@@ -343,6 +383,7 @@
         <button data-view="board" aria-selected="true">Board</button>
         <button data-view="summary" aria-selected="false">Summary</button>
         <button data-view="discovery" aria-selected="false">Discovery</button>
+        <button data-view="prep" aria-selected="false">Interview&nbsp;Prep</button>
       </div>
       <button class="ghost" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
     </div>
@@ -372,6 +413,9 @@
     <div id="discoveryView" hidden>
       <div id="discovery" class="discovery"></div>
     </div>
+    <div id="prepView" hidden>
+      <div id="prep" class="prep"></div>
+    </div>
   </div>
 
   <div id="status" hidden></div>
@@ -382,7 +426,8 @@
   const CONFIG = {
     owner:"bencschulze-byte", repo:"job-scanner", dataPath:"dashboard.json",
     triagePath:"triage.yaml", appliedPath:"applied.yaml",
-    acceptedPath:"discovery_accepted.yaml", rejectedPath:"discovery_rejected.yaml"
+    acceptedPath:"discovery_accepted.yaml", rejectedPath:"discovery_rejected.yaml",
+    interviewPath:"interview_prep.json"
   };
 </script>
 <script>
@@ -430,6 +475,12 @@
   const accepted = { path:CONFIG.acceptedPath, key:"accepted",  set:new Set(), sha:null };
   const rejected = { path:CONFIG.rejectedPath, key:"rejected",  set:new Set(), sha:null };
   const filters = { tier:"", company:"", matchesOnly:true, newOnly:false };
+
+  // interview prep is a separate file, loaded lazily the first time its tab is
+  // opened (so a missing file never blocks the board's boot).
+  let PREP = null;              // { synced_at, questions:[...] } once fetched
+  let prepState = "idle";       // idle | loading | ready | empty | error
+  let prepQuery = "";
 
   // ---- formatting ----
   function relDate(iso, refIso) {
@@ -550,6 +601,8 @@
       $("boardView").hidden = b.dataset.view !== "board";
       $("summaryView").hidden = b.dataset.view !== "summary";
       $("discoveryView").hidden = b.dataset.view !== "discovery";
+      $("prepView").hidden = b.dataset.view !== "prep";
+      if (b.dataset.view === "prep") renderPrep();
     };
     renderRows();
     renderDiscovery();
@@ -743,6 +796,82 @@
       if (changedOther) other.set.add(norm);
       t.remove(); renderDiscovery();
     };
+  }
+
+  // ---- Interview Prep tab: read-only Q&A from interview_prep.json ----
+  function fmtSynced(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleString(undefined, { month:"short", day:"numeric",
+      year:"numeric", hour:"numeric", minute:"2-digit" });
+  }
+  async function renderPrep() {
+    if (prepState === "loading") return;
+    if (prepState === "idle") {
+      prepState = "loading";
+      $("prep").innerHTML = `<div class="empty">Loading your prep…</div>`;
+      try {
+        const f = await loadFile(CONFIG.interviewPath);
+        if (f.status === 404) { PREP = { questions:[] }; prepState = "empty"; }
+        else { PREP = JSON.parse(f.text); prepState = "ready"; }
+      } catch (e) {
+        prepState = "error";
+        $("prep").innerHTML = `<div class="empty">Couldn't load interview prep `
+          + `(error ${e.status||"network"}). Try reopening the tab.</div>`;
+        return;
+      }
+    }
+    drawPrep();
+  }
+  function drawPrep() {
+    const host = $("prep");
+    const qs = (PREP && PREP.questions) || [];
+    if (!qs.length) {
+      host.innerHTML = `<div class="empty">No interview prep yet. Run `
+        + `<span class="mono">sync_interview_prep.py</span> to publish your Q&amp;A here.</div>`;
+      return;
+    }
+    const synced = PREP.synced_at ? `Synced ${fmtSynced(PREP.synced_at)}` : "";
+    host.innerHTML =
+      `<div class="prep-intro">
+         <p>Your rehearsed answers, straight from your prep doc. Expand a question
+            to see the core answer and its delivery notes.</p>
+         ${synced ? `<span class="prep-synced">${esc(synced)}</span>` : ""}
+       </div>
+       <div class="prep-filter">
+         <input id="prepFilter" type="search" placeholder="Filter questions and answers…"
+                autocomplete="off" spellcheck="false" aria-label="Filter interview questions">
+       </div>
+       <div class="prep-cards" id="prepCards"></div>`;
+    const inp = $("prepFilter");
+    inp.value = prepQuery;
+    inp.oninput = () => { prepQuery = inp.value; drawPrepCards(); };
+    drawPrepCards();
+  }
+  function drawPrepCards() {
+    const q = prepQuery.trim().toLowerCase();
+    const items = (PREP.questions || []).filter(it => {
+      if (!q) return true;
+      const hay = (it.question + " " + (it.answer||[]).join(" ") + " "
+        + (it.delivery_notes||[]).join(" ")).toLowerCase();
+      return hay.includes(q);
+    });
+    const host = $("prepCards");
+    host.innerHTML = items.length ? items.map(prepCard).join("")
+      : `<div class="empty">No questions match “${esc(prepQuery)}”.</div>`;
+  }
+  function prepCard(it) {
+    const answer = (it.answer||[]).map(p => `<p>${esc(p)}</p>`).join("")
+      || `<p class="q-muted">No answer recorded.</p>`;
+    const notes = it.delivery_notes || [];
+    const notesBlock = notes.length
+      ? `<div class="q-notes"><div class="q-notes-label">Delivery notes</div>`
+        + notes.map(p => `<p>${esc(p)}</p>`).join("") + `</div>`
+      : "";
+    return `<details class="qcard">
+      <summary><span class="q-text">${esc(it.question)}</span></summary>
+      <div class="q-body"><div class="q-answer">${answer}</div>${notesBlock}</div>
+    </details>`;
   }
 
   // ---- apply / dismiss: optimistic + undo + delayed commit ----
