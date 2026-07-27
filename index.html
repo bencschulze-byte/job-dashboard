@@ -473,6 +473,15 @@
     const j = await r.json();
     return { status:200, sha:j.sha, text:b64dec(j.content) };
   }
+  // Read-only fetch for large data files. The JSON contents API only returns
+  // base64 `content` for files up to 1 MB (dashboard.json is bigger), so we
+  // request the raw media type, which serves the file directly up to 100 MB.
+  async function loadRaw(p) {
+    const r = await api(p, { headers:{ Accept:"application/vnd.github.raw" } });
+    if (r.status === 404) return { status:404 };
+    if (!r.ok) throw { status:r.status };
+    return { status:200, text: await r.text() };
+  }
 
   // ---- yaml list files (triage.yaml / applied.yaml) — we own the format ----
   function parseList(t) {
@@ -547,7 +556,7 @@
     if (!token()) return showSetup();
     show("status","Loading your brief…");
     try {
-      const d = await loadFile(CONFIG.dataPath);
+      const d = await loadRaw(CONFIG.dataPath);
       if (d.status === 404) return show("status","No scan data yet — run a scan first.");
       DATA = JSON.parse(d.text);
       for (const store of [triage, applied, accepted, rejected]) {
@@ -843,7 +852,7 @@
       prepState = "loading";
       $("prep").innerHTML = `<div class="empty">Loading your prep…</div>`;
       try {
-        const f = await loadFile(CONFIG.interviewPath);
+        const f = await loadRaw(CONFIG.interviewPath);
         if (f.status === 404) { PREP = { questions:[] }; prepState = "empty"; }
         else { PREP = JSON.parse(f.text); prepState = "ready"; }
       } catch (e) {
