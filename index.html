@@ -52,8 +52,10 @@
   .mono { font-family:var(--mono); }
 
   /* ---- top bar ---- */
+  /* wraps because a fifth tab overflows a narrow window — without this the
+     Reset token button is pushed off the right edge below ~700px */
   .topbar { display:flex; align-items:center; justify-content:space-between;
-            padding:2px 0 20px; }
+            flex-wrap:wrap; gap:8px; padding:2px 0 20px; }
   .brand { font-family:var(--mono); font-size:12px; letter-spacing:.14em;
            text-transform:uppercase; color:var(--muted); }
   .brand b { color:var(--ink-2); font-weight:500; }
@@ -216,6 +218,11 @@
   .appliedtag { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.08em;
                 color:var(--ok); border:1px solid rgba(46,158,91,.4); border-radius:4px;
                 padding:0 5px; }
+  /* an application whose posting has left the board — a quiet note, not an
+     alarm: nothing is wrong with the application itself */
+  .offboard { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.08em;
+              text-transform:none; color:var(--muted); border:1px solid var(--line-2);
+              border-radius:4px; padding:0 5px; }
 
   .empty { text-align:center; color:var(--muted); padding:40px 0; font-size:14px; }
 
@@ -259,6 +266,34 @@
   .tnote { font-family:var(--mono); font-size:11px; color:var(--ok); margin-left:auto; }
   .tfeed-warn { color:var(--down); }
   .tnote-warn { color:var(--down); margin-left:auto; }
+
+  /* ---- pipeline tab ---- */
+  /* "quiet" is a nudge, not an alarm and NOT news — --accent is reserved for
+     "new" (see :root), so this borrows the semantic red at low saturation. */
+  .nudge { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.08em;
+           color:var(--down); border:1px solid var(--down); border-radius:4px;
+           padding:0 5px; }
+  .nudge-count { display:inline-block; min-width:15px; margin-left:5px; text-align:center;
+                 line-height:15px; vertical-align:middle; letter-spacing:0; }
+  .tabs button[aria-selected="true"] .nudge { color:var(--page); border-color:var(--page); }
+  .pgroup { margin:0 0 22px; }
+  .pgroup h3 { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.14em;
+               text-transform:uppercase; color:var(--muted); margin:0 0 10px;
+               display:flex; align-items:center; gap:8px; }
+  .pgroup-n { font-size:11px; letter-spacing:0; color:var(--faint); }
+  .pcards { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .pcard { background:var(--surface); border:1px solid var(--line); border-radius:12px;
+           padding:12px 14px; display:flex; flex-direction:column; gap:6px; }
+  .p-head { display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+            font-family:var(--mono); font-size:11px; letter-spacing:.08em;
+            text-transform:uppercase; }
+  .p-company { color:var(--ink-2); font-weight:600; }
+  .p-meta { font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+  .pcard select { width:100%; margin-top:2px; }
+  .pcard textarea { width:100%; font:inherit; font-size:13px; color:var(--ink);
+                    background:var(--raised); border:1px solid var(--line-2);
+                    border-radius:8px; padding:7px 9px; resize:vertical; }
+  .pcard textarea:focus { outline:2px solid var(--accent-line); outline-offset:1px; }
 
   /* ---- interview prep tab ---- */
   .prep { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
@@ -335,6 +370,11 @@
             padding:10px 16px; font-weight:500; font-size:14px; }
   .btn-go:hover { opacity:.9; }
   .err { color:var(--down); font-size:13px; margin:6px 0 0; }
+  /* persistent, in-page problem notice — coexists with the board, unlike
+     #status which replaces the whole page */
+  .banner { border:1px solid var(--down); border-radius:9px; background:var(--surface);
+            color:var(--down); font-size:13px; line-height:1.5;
+            padding:10px 13px; margin:0 0 18px; }
 
   /* ---- toasts ---- */
   #toasts { position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
@@ -366,6 +406,11 @@
     .c-meta .iconbtn:first-of-type { margin-left:auto; }
     .count { margin-left:0; width:100%; }
     .hero h1 { font-size:clamp(28px,9vw,40px); }
+    /* Five tabs don't fit; scroll them sideways rather than wrapping, which
+       would strand the segmented control's dividers at the start of row two. */
+    .tabs { max-width:100%; overflow-x:auto; }
+    .tabs button { flex:0 0 auto; white-space:nowrap; }
+    .pcards { grid-template-columns:1fr; }
   }
 </style>
 </head>
@@ -398,11 +443,13 @@
       <div class="tabs" id="tabs" role="tablist">
         <button data-view="board" aria-selected="true">Board</button>
         <button data-view="summary" aria-selected="false">Summary</button>
+        <button data-view="pipeline" aria-selected="false">Pipeline</button>
         <button data-view="discovery" aria-selected="false">Discovery</button>
         <button data-view="prep" aria-selected="false">Interview&nbsp;Prep</button>
       </div>
       <button class="ghost" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
     </div>
+    <div id="banner" class="banner" hidden></div>
     <div id="boardView">
     <section id="hero" class="hero"></section>
     <div id="stats" class="stats"></div>
@@ -431,6 +478,9 @@
     <div id="summaryView" hidden>
       <div id="summary" class="summary"></div>
     </div>
+    <div id="pipelineView" hidden>
+      <div id="pipeline" class="pipeline"></div>
+    </div>
     <div id="discoveryView" hidden>
       <div id="discovery" class="discovery"></div>
     </div>
@@ -446,9 +496,10 @@
 <script>
   const CONFIG = {
     owner:"bencschulze-byte", repo:"job-scanner", dataPath:"dashboard.json",
-    triagePath:"triage.yaml", appliedPath:"applied.yaml",
+    triagePath:"triage.yaml", applicationsPath:"applications.json",
     acceptedPath:"discovery_accepted.yaml", rejectedPath:"discovery_rejected.yaml",
-    interviewPath:"interview_prep.json"
+    interviewPath:"interview_prep.json",
+    pipeline: {"quiet_days": 14, "quiet_days_by_stage": {"interview": 7, "screen": 7}, "stages": ["applied", "screen", "interview", "offer", "rejected", "withdrawn"], "terminal": ["rejected", "withdrawn", "offer"]}
   };
 </script>
 <script>
@@ -483,7 +534,7 @@
     return { status:200, text: await r.text() };
   }
 
-  // ---- yaml list files (triage.yaml / applied.yaml) — we own the format ----
+  // ---- yaml list files (triage.yaml / discovery_*.yaml) — we own the format ----
   function parseList(t) {
     const ids = [];
     for (const line of (t||"").split("\n")) {
@@ -498,13 +549,109 @@
     `# Managed by the dashboard app.\n${key}:\n`
     + ids.map(id => `  - "${id.replace(/\\/g,"\\\\").replace(/"/g,'\\"')}"`).join("\n") + "\n";
 
-  // ---- state (client-owned lists: dismissed, applied, and discovery accept/reject) ----
+  // ---- state (client-owned files: dismissed, applications, discovery accept/reject) ----
   let DATA=null;
-  const triage   = { path:CONFIG.triagePath,   key:"dismissed", set:new Set(), sha:null };
-  const applied  = { path:CONFIG.appliedPath,  key:"applied",   set:new Set(), sha:null };
-  const accepted = { path:CONFIG.acceptedPath, key:"accepted",  set:new Set(), sha:null };
-  const rejected = { path:CONFIG.rejectedPath, key:"rejected",  set:new Set(), sha:null };
+  // Every posting id currently on the board. Applications are looked up against
+  // this to spot ones whose posting has left it (closed, company dropped,
+  // filters changed, or the feed re-issued the job id).
+  let ROW_IDS=new Set();
+  // A store owns one file in the private repo. `serialize` turns its in-memory
+  // state into file text; `adopt` replaces that state from a loadFile() result.
+  // commit() reaches the file ONLY through those two hooks, so it never needs to
+  // know what shape the file is — and `readOnly` lets a store that failed to
+  // parse refuse to write rather than overwrite what it couldn't read.
+  const listStore = (path, key) => ({
+    path, key, set:new Set(), sha:null, readOnly:false,
+    serialize() { return serializeList(this.key, [...this.set]); },
+    adopt(f) {
+      this.set = new Set(f.status===404 ? [] : parseList(f.text));
+      this.sha = f.status===404 ? null : f.sha;
+    },
+  });
+  // applications.json: the pipeline. Unlike the yaml lists this file holds
+  // work you can't get back — stage history and notes you typed — so a parse
+  // failure goes read-only rather than writing a file built from whatever
+  // little we managed to read. One corrupt fetch must not erase the history.
+  const jsonStore = (path, key) => ({
+    path, key, map:new Map(), sha:null, readOnly:false,
+    serialize() {
+      return JSON.stringify({ version:1,
+        applications: [...this.map.values()].sort(byApplied) }, null, 2) + "\n";
+    },
+    adopt(f) {
+      this.sha = f.status===404 ? null : f.sha;
+      if (f.status === 404) { this.map = new Map(); this.readOnly = false; return; }
+      try {
+        const doc = JSON.parse(f.text);
+        this.map = new Map((doc.applications || []).map(r => [r.id, r]));
+        this.readOnly = false;
+      } catch (e) {
+        this.readOnly = true;
+        showBanner(`Couldn't read ${this.path} — it isn't valid JSON. Your `
+          + `pipeline is hidden and changes to it won't be saved until the `
+          + `file is fixed. The rest of the board still works.`);
+      }
+    },
+  });
+  const triage   = listStore(CONFIG.triagePath,   "dismissed");
+  const accepted = listStore(CONFIG.acceptedPath, "accepted");
+  const rejected = listStore(CONFIG.rejectedPath, "rejected");
+  const apps     = jsonStore(CONFIG.applicationsPath, "applications");
+  const STORES = [triage, accepted, rejected, apps];
   const filters = { tier:"", company:"", matchesOnly:true, newOnly:false, sort:"fit" };
+
+  // ---- application records ----
+  // `history` is the only stage storage — stage, stage_since and applied_at are
+  // all derived from it, so they can never disagree. This mirrors
+  // scanner/applications.py; the two writers must stay in step, because both
+  // write this file and a difference means every commit rewrites the whole
+  // thing instead of adding one hunk.
+  const todayISO = () => {
+    // Wall clock, deliberately NOT DATA.last_scan — a scan that stopped
+    // running must not also freeze the follow-up clock.
+    const d = new Date(), p = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  };
+  const last = r => (r.history||[])[(r.history||[]).length-1] || {};
+  const stageOf = r => last(r).stage || "";
+  const stageSince = r => last(r).at || "";
+  const appliedAtOf = r =>
+    (((r.history||[]).find(h => h.stage==="applied")) || (r.history||[])[0] || {}).at || "";
+  // Codepoint order, matching Python's sorted() — NOT localeCompare, which
+  // would order accented company names differently from the migration script.
+  const cmp = (a,b) => (a||"") < (b||"") ? -1 : (a||"") > (b||"") ? 1 : 0;
+  const byApplied = (a,b) => cmp(appliedAtOf(a), appliedAtOf(b)) || cmp(a.id, b.id);
+  function daysBetween(startISO, endISO) {
+    const s = new Date(startISO+"T00:00:00"), e = new Date(endISO+"T00:00:00");
+    if (isNaN(s) || isNaN(e)) return null;
+    return Math.round((e - s)/86400000);
+  }
+  function isQuiet(rec) {
+    const cfg = CONFIG.pipeline || {}, stage = stageOf(rec);
+    // An unknown stage (renamed in pipeline.yaml since) is non-terminal and
+    // uses the default — a record never falls out because the config moved on.
+    if ((cfg.terminal||[]).includes(stage)) return false;
+    const days = daysBetween(stageSince(rec), todayISO());
+    if (days === null) return false;
+    const limit = (cfg.quiet_days_by_stage||{})[stage];
+    return days >= (limit === undefined ? cfg.quiet_days : limit);
+  }
+  const newRecord = (row) => ({
+    id: row.id, notes: "",
+    history: [{ stage: (CONFIG.pipeline.stages||["applied"])[0], at: todayISO() }],
+    posting: { company:row.company, title:row.title, url:row.url,
+               location:row.location, loc_more:row.loc_more||0,
+               location_full:row.location_full||"", salary:row.salary||"",
+               tier:row.tier, match:!!row.match, first_seen:row.first_seen||"" },
+  });
+  // card() renders postings; a record carries a snapshot of one, so this lets
+  // the applied cards reuse the same renderer unforked. `score` is absent on
+  // purpose — it's recomputed each render from scoring.yaml, so a frozen copy
+  // would drift; card() already handles a missing score. `offBoard` marks a
+  // record whose posting has left DATA.rows.
+  const rowFromRecord = rec => ({
+    ...rec.posting, id:rec.id, offBoard: !ROW_IDS.has(rec.id),
+  });
 
   // interview prep is a separate file, loaded lazily the first time its tab is
   // opened (so a missing file never blocks the board's boot).
@@ -551,6 +698,28 @@
     show("setup");
   }
 
+  // A problem worth keeping on screen rather than fading — shown alongside the
+  // board, not instead of it, so a broken file never costs you the whole app.
+  function showBanner(msg) { $("banner").textContent = msg; $("banner").hidden = false; }
+
+  // A toast that defers an action: `after` runs when the timer expires, `undo`
+  // runs instead if the button is clicked first. With neither it's a plain
+  // notice that clears itself. This deferral IS the undo window — nothing is
+  // committed to the repo until the timer fires.
+  function toast(msg, { ms = 6000, after = null, undo = null } = {}) {
+    const t = document.createElement("div"); t.className = "toast";
+    const label = document.createElement("span"); label.textContent = msg;
+    t.appendChild(label);
+    if (undo) {
+      const b = document.createElement("button"); b.textContent = "Undo";
+      b.onclick = () => { clearTimeout(timer); t.remove(); undo(); };
+      t.appendChild(b);
+    }
+    $("toasts").appendChild(t);
+    const timer = setTimeout(() => { t.remove(); if (after) after(); }, ms);
+    return t;
+  }
+
   // ---- boot ----
   async function boot() {
     if (!token()) return showSetup();
@@ -559,11 +728,8 @@
       const d = await loadRaw(CONFIG.dataPath);
       if (d.status === 404) return show("status","No scan data yet — run a scan first.");
       DATA = JSON.parse(d.text);
-      for (const store of [triage, applied, accepted, rejected]) {
-        const t = await loadFile(store.path);
-        store.set = new Set(t.status===404 ? [] : parseList(t.text));
-        store.sha = t.status===404 ? null : t.sha;
-      }
+      ROW_IDS = new Set(DATA.rows.map(r => r.id));
+      for (const store of STORES) store.adopt(await loadFile(store.path));
       renderShell(); show("main");
     } catch (e) {
       if (e.status === 401) return showSetup("That token was rejected (invalid or expired). Paste a fresh one.");
@@ -575,8 +741,8 @@
   function stats() {
     const m = DATA.rows.filter(r => r.match);
     const dis = m.filter(r => triage.set.has(r.id)).length;
-    const app = m.filter(r => applied.set.has(r.id) && !triage.set.has(r.id)).length;
-    const nw = m.filter(r => r.new && !triage.set.has(r.id) && !applied.set.has(r.id));
+    const app = m.filter(r => apps.map.has(r.id)).length;
+    const nw = m.filter(r => r.new && !triage.set.has(r.id) && !apps.map.has(r.id));
     return { total:m.length, dismissed:dis, applied:app, openLive:m.length-dis-app, newRows:nw };
   }
 
@@ -635,12 +801,12 @@
         x.setAttribute("aria-selected", String(x===b));
       $("boardView").hidden = b.dataset.view !== "board";
       $("summaryView").hidden = b.dataset.view !== "summary";
+      $("pipelineView").hidden = b.dataset.view !== "pipeline";
       $("discoveryView").hidden = b.dataset.view !== "discovery";
       $("prepView").hidden = b.dataset.view !== "prep";
       if (b.dataset.view === "prep") renderPrep();
     };
-    renderRows();
-    renderDiscovery();
+    renderAll();
   }
 
   const byTier = (a,b) => a.tier - b.tier
@@ -651,14 +817,22 @@
   const SORTS = { fit:byFit, tier:byTier, new:byNew };
   function openRows() {
     return DATA.rows.filter(r =>
-      !triage.set.has(r.id) && !applied.set.has(r.id) &&
+      !triage.set.has(r.id) && !apps.map.has(r.id) &&
       (filters.tier==="" || r.tier===Number(filters.tier)) &&
       (filters.company==="" || r.company===filters.company) &&
       (!filters.matchesOnly || r.match) &&
       (!filters.newOnly || r.new)).sort(SORTS[filters.sort] || byFit);
   }
+  // Iterates the RECORDS, not DATA.rows. That's the whole point: DATA.rows only
+  // ever holds open postings, so filtering it used to make an applied card
+  // vanish the day its posting closed while the id sat in the file forever.
+  // A record carries its own snapshot, so it survives.
+  //
+  // No triage check either — a record beats a dismissal. Applying to something
+  // you'd dismissed used to leave it in neither list, because act() dropped the
+  // id from triage in memory but only ever committed the applied file.
   const appliedRows = () =>
-    DATA.rows.filter(r => applied.set.has(r.id) && !triage.set.has(r.id)).sort(byTier);
+    [...apps.map.values()].map(rowFromRecord).sort(byTier);
 
   const IC = {
     x:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>',
@@ -670,6 +844,14 @@
     const tag = mode==="applied" ? '<span class="appliedtag">Applied</span>'
       : (r.new ? '<span class="newtag">New</span>' : '');
     const near = r.match ? "" : ' <span style="text-transform:none;letter-spacing:0;color:var(--faint)">near-miss</span>';
+    // Deliberately not "closed": a posting also leaves the board when its
+    // company drops out of companies.yaml, when filters.yaml changes, or when
+    // the feed re-issues its job id. Saying a job closed when it hasn't is
+    // worse than saying nothing precise.
+    const off = r.offBoard
+      ? ' <span class="offboard" title="This posting is no longer on your board.'
+        + ' It may have closed, or its company or your filters may have changed.">'
+        + 'no longer on your board</span>' : "";
     const sal = r.salary ? `<span class="c-sal">${esc(r.salary)}</span>` : "";
     const actions = mode==="applied"
       ? `<button class="iconbtn c-back" data-unapply="${esc(r.id)}" aria-label="Move back to open">${IC.back}</button>`
@@ -680,7 +862,7 @@
       `<span class="fit ${r.score>=80?"hi":r.score<60?"lo":""}" title="${esc(fitTip(r))}">${r.score}</span>`;
     return `<article class="${cls}" data-id="${esc(r.id)}">
       <div class="c-tier"><span class="tier t${r.tier}">T${r.tier}</span>${fit}</div>
-      <div class="c-company">${esc(r.company)}${tag}${near}</div>
+      <div class="c-company">${esc(r.company)}${tag}${near}${off}</div>
       <a class="c-title" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
       <div class="c-loc" title="${esc(r.location_full||"")}">${esc(r.location||"—")}${r.loc_more?` <span class="more">+${r.loc_more} more</span>`:""}${sal}</div>
       <div class="c-meta"><span class="c-date">${esc(relDate(r.first_seen, DATA.last_scan))}</span>${actions}</div>
@@ -696,15 +878,19 @@
     $("appliedCards").innerHTML = app.map(r => card(r,"applied")).join("");
     document.querySelectorAll("[data-apply]").forEach(b => b.onclick = () => act("apply", b.dataset.apply));
     document.querySelectorAll("[data-dismiss]").forEach(b => b.onclick = () => act("dismiss", b.dataset.dismiss));
-    document.querySelectorAll("[data-unapply]").forEach(b => b.onclick = () => {
-      applied.set.delete(b.dataset.unapply); renderRows(); commit(applied);
-    });
+    document.querySelectorAll("[data-unapply]").forEach(b =>
+      b.onclick = () => unapply(b.dataset.unapply));
     const st = stats();
     $("count").innerHTML = `${open.length} shown`
       + (st.applied ? ` <span class="dismissed">· ${st.applied} applied</span>` : "")
       + (st.dismissed ? ` <span class="dismissed">· ${st.dismissed} dismissed</span>` : "");
     renderSummary();
   }
+
+  // Every client-owned mutation renders through this, so no tab is ever left
+  // showing state the stores no longer hold — including after a failed commit
+  // resyncs from the server.
+  function renderAll() { renderRows(); renderPipeline(); renderDiscovery(); }
 
   // ---- Summary tab: applied / open / dismissed / non-match, by tier ----
   function renderSummary() {
@@ -716,7 +902,7 @@
     for (const r of DATA.rows) {
       if (!r.match) continue;
       const p = per[r.company]; if (!p) continue;
-      if (applied.set.has(r.id)) p.A++;
+      if (apps.map.has(r.id)) p.A++;
       else if (triage.set.has(r.id)) p.D++;
       else p.O++;
     }
@@ -764,6 +950,115 @@
     $("summary").innerHTML =
       `<p style="color:var(--muted);font-size:13px;margin:2px 0 2px">Your funnel by tier — open matches split into applied / open / dismissed, plus everything sourced that didn't match.</p>`
       + blocks;
+  }
+
+  // ---- Pipeline tab: your applications by stage ----
+  // Handlers here are scoped to the host element on purpose. renderRows() binds
+  // with a bare document.querySelectorAll, so anything reusing its data-apply /
+  // data-dismiss / data-unapply attributes would get cross-bound between tabs;
+  // these controls use data-stage / data-note and never leave this subtree.
+  const stageOptions = current => {
+    const list = CONFIG.pipeline.stages || [];
+    // A stage that's since been renamed out of pipeline.yaml is kept as an
+    // option, so opening the dropdown can't silently rewrite where you are.
+    const all = (!current || list.includes(current)) ? list : [...list, current];
+    return all.map(s =>
+      `<option value="${esc(s)}"${s===current ? " selected" : ""}>${esc(s)}</option>`).join("");
+  };
+
+  function pipeCard(rec) {
+    const p = rec.posting, stage = stageOf(rec);
+    const days = daysBetween(stageSince(rec), todayISO());
+    const off = ROW_IDS.has(rec.id) ? ""
+      : ' <span class="offboard" title="This posting is no longer on your board.'
+        + ' It may have closed, or its company or your filters may have changed.">'
+        + 'no longer on your board</span>';
+    const quiet = isQuiet(rec)
+      ? ` <span class="nudge" title="No movement for ${days} days — worth a nudge.">quiet</span>`
+      : "";
+    const sal = p.salary ? `<span class="c-sal">${esc(p.salary)}</span>` : "";
+    const held = days === null ? "" : ` · ${days === 0 ? "today" : days + "d here"}`;
+    return `<article class="pcard" data-id="${esc(rec.id)}">
+      <div class="p-head"><span class="tier t${p.tier}">T${p.tier}</span>
+        <span class="p-company">${esc(p.company)}</span>${off}${quiet}</div>
+      <a class="c-title" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
+      <div class="c-loc" title="${esc(p.location_full||"")}">${esc(p.location||"—")}${sal}</div>
+      <div class="p-meta">Applied ${esc(relDate(appliedAtOf(rec), todayISO()))}${held}</div>
+      <select data-stage="${esc(rec.id)}" aria-label="Stage for ${esc(p.title)}">
+        ${stageOptions(stage)}
+      </select>
+      <textarea data-note="${esc(rec.id)}" rows="2" spellcheck="false"
+        aria-label="Notes for ${esc(p.title)}"
+        placeholder="Notes — who you spoke to, what's next">${esc(rec.notes||"")}</textarea>
+    </article>`;
+  }
+
+  function renderPipeline() {
+    const host = $("pipeline"), tab = $("tabs").querySelector('[data-view="pipeline"]');
+    if (apps.readOnly) {
+      if (tab) tab.textContent = "Pipeline";
+      host.innerHTML = `<div class="empty">Your pipeline can't be shown — `
+        + `see the message at the top of the page.</div>`;
+      return;
+    }
+    const records = [...apps.map.values()];
+    const quiet = records.filter(isQuiet).length;
+    if (tab) tab.innerHTML = "Pipeline"
+      + (quiet ? ` <span class="nudge nudge-count">${quiet}</span>` : "");
+    if (!records.length) {
+      host.innerHTML = `<div class="empty">Nothing here yet. Mark a posting as `
+        + `applied on the Board and it'll appear here.</div>`;
+      return;
+    }
+    // Config order first, then any stage the config no longer lists — a
+    // renamed stage must still render rather than drop its applications.
+    const present = [...new Set(records.map(stageOf))];
+    const order = CONFIG.pipeline.stages || [];
+    const stages = [...order.filter(s => present.includes(s)),
+                    ...present.filter(s => !order.includes(s))];
+    host.innerHTML =
+      `<p class="disc-intro">Every role you've applied to, by where it stands.
+        Change a stage or jot a note — notes save when you click away.
+        <b>Quiet</b> means nothing has moved for long enough to be worth a
+        follow-up (thresholds live in <span class="mono">pipeline.yaml</span>).</p>`
+      + stages.map(s => {
+          const inStage = records.filter(r => stageOf(r) === s)
+            .sort((a,b) => cmp(stageSince(b), stageSince(a)));
+          return `<section class="pgroup"><h3>${esc(s)}`
+            + `<span class="pgroup-n">${inStage.length}</span></h3>`
+            + `<div class="pcards">${inStage.map(pipeCard).join("")}</div></section>`;
+        }).join("");
+    host.querySelectorAll("[data-stage]").forEach(sel =>
+      sel.onchange = () => setStage(sel.dataset.stage, sel.value));
+    host.querySelectorAll("[data-note]").forEach(area =>
+      area.onblur = () => noteChanged(area.dataset.note, area.value));
+  }
+
+  function setStage(id, stage) {
+    const rec = apps.map.get(id);
+    if (!rec || stageOf(rec) === stage) return;
+    const previous = rec.history;
+    // History is append-only: the timeline is the point, so a stage change
+    // records when it happened rather than overwriting where you were.
+    rec.history = [...rec.history, { stage, at: todayISO() }];
+    renderAll();
+    toast(`Moved to ${stage}.`, {
+      ms: 5000,
+      after: () => commit(apps),
+      undo: () => { rec.history = previous; renderAll(); },
+    });
+  }
+
+  // Notes commit on blur, debounced, and only when the text actually changed —
+  // one commit per keystroke would hammer the API and can rate-limit the token.
+  // No re-render here: that would pull focus out from under you mid-edit.
+  let notesTimer = null;
+  function noteChanged(id, text) {
+    const rec = apps.map.get(id);
+    if (!rec || rec.notes === text) return;
+    rec.notes = text;
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => commit(apps), 2000);
   }
 
   // ---- Discovery tab: accept (start scanning it) / reject (never again) ----
@@ -824,19 +1119,17 @@
     const other = kind==="accept" ? rejected : accepted;
     store.set.add(norm);
     const changedOther = other.set.delete(norm);
-    renderDiscovery();
-    const msg = kind==="accept" ? "Accepted — added to your scan."
-                                : "Rejected — you won't see it again.";
-    const t = document.createElement("div"); t.className = "toast";
-    t.innerHTML = `<span>${msg}</span>`;
-    const undo = document.createElement("button"); undo.textContent = "Undo"; t.appendChild(undo);
-    $("toasts").appendChild(t);
-    const timer = setTimeout(() => { t.remove(); commit(store); if (changedOther) commit(other); }, 5000);
-    undo.onclick = () => {
-      clearTimeout(timer); store.set.delete(norm);
-      if (changedOther) other.set.add(norm);
-      t.remove(); renderDiscovery();
-    };
+    renderAll();
+    toast(kind==="accept" ? "Accepted — added to your scan."
+                          : "Rejected — you won't see it again.", {
+      ms: 5000,
+      after: () => { commit(store); if (changedOther) commit(other); },
+      undo: () => {
+        store.set.delete(norm);
+        if (changedOther) other.set.add(norm);
+        renderAll();
+      },
+    });
   }
 
   // ---- Interview Prep tab: read-only Q&A from interview_prep.json ----
@@ -917,26 +1210,59 @@
 
   // ---- apply / dismiss: optimistic + undo + delayed commit ----
   function act(kind, id) {
-    const store = kind==="apply" ? applied : triage;
-    store.set.add(id);
-    if (kind==="apply") triage.set.delete(id);   // applying un-dismisses
-    renderRows();
-    const msg = kind==="apply" ? "Marked as applied." : "Dismissed — hidden from your board.";
-    const t = document.createElement("div"); t.className = "toast";
-    t.innerHTML = `<span>${msg}</span>`;
-    const undo = document.createElement("button"); undo.textContent = "Undo"; t.appendChild(undo);
-    $("toasts").appendChild(t);
-    const timer = setTimeout(() => { t.remove(); commit(store); }, 5000);
-    undo.onclick = () => { clearTimeout(timer); store.set.delete(id); t.remove(); renderRows(); };
+    if (kind === "dismiss") {
+      triage.set.add(id);
+      renderAll();
+      return toast("Dismissed — hidden from your board.", {
+        ms: 5000,
+        after: () => commit(triage),
+        undo: () => { triage.set.delete(id); renderAll(); },
+      });
+    }
+    const row = DATA.rows.find(r => r.id === id);
+    if (!row || apps.map.has(id)) return;
+    apps.map.set(id, newRecord(row));
+    // Applying un-dismisses. This used to change triage in memory and never
+    // commit it, so on the next load the id was still dismissed AND applied —
+    // and the posting rendered in neither list.
+    const wasDismissed = triage.set.delete(id);
+    renderAll();
+    toast("Marked as applied.", {
+      ms: 5000,
+      after: () => { commit(apps); if (wasDismissed) commit(triage); },
+      undo: () => {
+        apps.map.delete(id);
+        if (wasDismissed) triage.set.add(id);
+        renderAll();
+      },
+    });
   }
 
-  // serialized commit of a client-owned yaml list; on failure, resync to server
+  // Un-applying now destroys a record — its stage history and your notes — so
+  // it gets the same undo window as everything else. It used to commit
+  // immediately, which was cheap when it only dropped an id from a list.
+  function unapply(id) {
+    const rec = apps.map.get(id);
+    if (!rec) return;
+    apps.map.delete(id);
+    renderAll();
+    toast("Moved back to open.", {
+      ms: 5000,
+      after: () => commit(apps),
+      undo: () => { apps.map.set(id, rec); renderAll(); },
+    });
+  }
+
+  // serialized commit of a client-owned file; on failure, resync to server
   let chain = Promise.resolve();
   function commit(store) {
     chain = chain.then(async () => {
-      const ids = [...store.set];
+      // A store that couldn't parse its own file must never write one back —
+      // it would replace content it never read with whatever little it holds.
+      if (store.readOnly) return;
+      const body = store.serialize();
       const put = sha => api(store.path, { method:"PUT", body:JSON.stringify({
-        message:`Update ${store.key}`, content:b64enc(serializeList(store.key, ids)), ...(sha?{sha}:{}) }) });
+        message:`Update ${store.key}`, content:b64enc(body), ...(sha?{sha}:{}) }) });
       let r = await put(store.sha);
       if (r.status === 409) {
         const f = await loadFile(store.path); store.sha = f.sha || null; r = await put(store.sha);
@@ -945,13 +1271,10 @@
       store.sha = (await r.json()).content.sha;
     }).catch(async err => {
       try {
-        const f = await loadFile(store.path);
-        store.set = new Set(f.status===404 ? [] : parseList(f.text));
-        store.sha = f.status===404 ? null : f.sha; renderRows();
+        store.adopt(await loadFile(store.path));
+        renderAll();
       } catch (_) {}
-      const t = document.createElement("div"); t.className = "toast";
-      t.textContent = "Couldn't save that change ("+err.message+") — reverted.";
-      $("toasts").appendChild(t); setTimeout(() => t.remove(), 6000);
+      toast("Couldn't save that change ("+err.message+") — reverted.");
     });
   }
 
