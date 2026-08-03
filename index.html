@@ -299,8 +299,11 @@
   /* A checklist, not a card wall: one row per firm, full width, so the two
      toggles line up down the page and you can read the column at a glance. */
   .firms-head { display:flex; flex-wrap:wrap; align-items:baseline;
-                justify-content:space-between; gap:4px 16px; margin:2px 0 4px; }
-  .firms-head p { color:var(--ink-2); font-size:14px; margin:0; max-width:70ch; }
+                justify-content:space-between; gap:4px 16px; margin:2px 0 20px; }
+  /* grows into the space the save indicator isn't using, instead of wrapping
+     early against an element that is empty most of the time */
+  .firms-head p { color:var(--ink-2); font-size:14px; margin:0; max-width:70ch;
+                  flex:1 1 420px; }
   /* the save indicator — deliberately quiet when things are fine and loud only
      when a commit failed, because a failed write is the one thing you must not
      miss (your edit is still on screen but not yet in the repo) */
