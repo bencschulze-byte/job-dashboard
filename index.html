@@ -52,7 +52,7 @@
   .mono { font-family:var(--mono); }
 
   /* ---- top bar ---- */
-  /* wraps because a fifth tab overflows a narrow window — without this the
+  /* wraps because a sixth tab overflows a narrow window — without this the
      Reset token button is pushed off the right edge below ~700px */
   .topbar { display:flex; align-items:center; justify-content:space-between;
             flex-wrap:wrap; gap:8px; padding:2px 0 20px; }
@@ -295,6 +295,41 @@
                     border-radius:8px; padding:7px 9px; resize:vertical; }
   .pcard textarea:focus { outline:2px solid var(--accent-line); outline-offset:1px; }
 
+  /* ---- search firms tab ---- */
+  /* A checklist, not a card wall: one row per firm, full width, so the two
+     toggles line up down the page and you can read the column at a glance. */
+  .firms-head { display:flex; flex-wrap:wrap; align-items:baseline;
+                justify-content:space-between; gap:4px 16px; margin:2px 0 4px; }
+  .firms-head p { color:var(--ink-2); font-size:14px; margin:0; max-width:70ch; }
+  /* the save indicator — deliberately quiet when things are fine and loud only
+     when a commit failed, because a failed write is the one thing you must not
+     miss (your edit is still on screen but not yet in the repo) */
+  .savestate { font-family:var(--mono); font-size:11.5px; color:var(--muted);
+               white-space:nowrap; display:inline-flex; align-items:center; gap:7px; }
+  .savestate.is-error { color:var(--down); white-space:normal; }
+  .savestate button { border:1px solid var(--down); background:transparent;
+                      color:var(--down); border-radius:6px; padding:1px 8px;
+                      font-family:var(--mono); font-size:11px; }
+  .fcard { background:var(--surface); border:1px solid var(--line); border-radius:12px;
+           box-shadow:var(--shadow); padding:13px 15px; margin-bottom:8px;
+           display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 14px; }
+  .fcard .f-name { grid-column:1; font-size:15.5px; font-weight:500; color:var(--ink);
+                   justify-self:start; }
+  .fcard .f-name:hover { color:var(--ink); text-decoration:underline;
+                         text-underline-offset:2px; }
+  .fcard .f-stamp { grid-column:2; grid-row:1; font-family:var(--mono); font-size:11px;
+                    color:var(--faint); white-space:nowrap; align-self:center; }
+  .fcard .f-desc { grid-column:1/-1; color:var(--ink-2); font-size:13px; max-width:74ch; }
+  .fcard .f-checks { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:6px 22px;
+                     margin:8px 0 2px; }
+  .fcard .f-checks .toggle { cursor:pointer; }
+  .fcard .f-checks input { cursor:pointer; }
+  .fcard textarea { grid-column:1/-1; width:100%; font:inherit; font-size:13px;
+                    color:var(--ink); background:var(--raised);
+                    border:1px solid var(--line-2); border-radius:8px;
+                    padding:7px 9px; resize:vertical; margin-top:4px; }
+  .fcard textarea:focus { outline:2px solid var(--accent-line); outline-offset:1px; }
+
   /* ---- interview prep tab ---- */
   .prep { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
   .prep-intro { display:flex; flex-wrap:wrap; align-items:baseline;
@@ -406,11 +441,13 @@
     .c-meta .iconbtn:first-of-type { margin-left:auto; }
     .count { margin-left:0; width:100%; }
     .hero h1 { font-size:clamp(28px,9vw,40px); }
-    /* Five tabs don't fit; scroll them sideways rather than wrapping, which
+    /* Six tabs don't fit; scroll them sideways rather than wrapping, which
        would strand the segmented control's dividers at the start of row two. */
     .tabs { max-width:100%; overflow-x:auto; }
     .tabs button { flex:0 0 auto; white-space:nowrap; }
     .pcards { grid-template-columns:1fr; }
+    .fcard { grid-template-columns:1fr; }
+    .fcard .f-stamp { grid-column:1; justify-self:start; }
   }
 </style>
 </head>
@@ -445,6 +482,7 @@
         <button data-view="summary" aria-selected="false">Summary</button>
         <button data-view="pipeline" aria-selected="false">Pipeline</button>
         <button data-view="discovery" aria-selected="false">Discovery</button>
+        <button data-view="firms" aria-selected="false">Search&nbsp;Firms</button>
         <button data-view="prep" aria-selected="false">Interview&nbsp;Prep</button>
       </div>
       <button class="ghost" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
@@ -484,6 +522,9 @@
     <div id="discoveryView" hidden>
       <div id="discovery" class="discovery"></div>
     </div>
+    <div id="firmsView" hidden>
+      <div id="firms" class="firms"></div>
+    </div>
     <div id="prepView" hidden>
       <div id="prep" class="prep"></div>
     </div>
@@ -498,7 +539,7 @@
     owner:"bencschulze-byte", repo:"job-scanner", dataPath:"dashboard.json",
     triagePath:"triage.yaml", applicationsPath:"applications.json",
     acceptedPath:"discovery_accepted.yaml", rejectedPath:"discovery_rejected.yaml",
-    interviewPath:"interview_prep.json",
+    interviewPath:"interview_prep.json", firmsPath:"search_firms.json",
     pipeline: {"quiet_days": 14, "quiet_days_by_stage": {"interview": 7, "screen": 7}, "stages": ["applied", "screen", "interview", "offer", "rejected", "withdrawn"], "terminal": ["rejected", "withdrawn", "offer"]}
   };
 </script>
@@ -803,8 +844,10 @@
       $("summaryView").hidden = b.dataset.view !== "summary";
       $("pipelineView").hidden = b.dataset.view !== "pipeline";
       $("discoveryView").hidden = b.dataset.view !== "discovery";
+      $("firmsView").hidden = b.dataset.view !== "firms";
       $("prepView").hidden = b.dataset.view !== "prep";
       if (b.dataset.view === "prep") renderPrep();
+      if (b.dataset.view === "firms") renderFirms();
     };
     renderAll();
   }
@@ -1275,6 +1318,273 @@
         renderAll();
       } catch (_) {}
       toast("Couldn't save that change ("+err.message+") — reverted.");
+    });
+  }
+
+  // ---- Search Firms tab: recruiter outreach checklist ----
+  // Its own file in the private repo, loaded lazily the first time the tab is
+  // opened (like interview prep, so a missing file never blocks the board).
+  // Unlike prep this file is WRITTEN, so it loads through loadFile() — we need
+  // the sha to PUT it back.
+  const firms = {
+    path: CONFIG.firmsPath,
+    doc: null,          // { version, firms:[...] } — the file as we hold it
+    sha: null,
+    readOnly: false,
+    // Edits not yet confirmed by a successful commit, keyed by firm name. This
+    // is what lets a conflicting write be re-applied on top of whatever someone
+    // else saved, instead of re-sending our stale copy of the whole file.
+    pending: new Map(),
+    // Bumped on every edit. A commit remembers the revision it serialized, so
+    // it clears the pending set only when nothing changed while it was in
+    // flight — otherwise the newer edit keeps its claim and saves itself.
+    rev: 0,
+    list() { return (this.doc && this.doc.firms) || []; },
+    find(name) { return this.list().find(f => f.name === name); },
+    serialize() { return JSON.stringify(this.doc, null, 2) + "\n"; },
+    adopt(f) {
+      this.sha = f.status === 404 ? null : f.sha;
+      if (f.status === 404) { this.doc = null; this.readOnly = false; return; }
+      try {
+        const doc = JSON.parse(f.text);
+        if (!doc || !Array.isArray(doc.firms)) throw new Error("no firms list");
+        this.doc = doc; this.readOnly = false;
+      } catch (e) {
+        // Same rule as applications.json: a file we couldn't read must never be
+        // overwritten with the little we managed to hold.
+        this.readOnly = true;
+        showBanner(`Couldn't read ${this.path} — it isn't valid JSON. Your `
+          + `search firms are hidden and changes to them won't be saved until `
+          + `the file is fixed. The rest of the board still works.`);
+      }
+    },
+    reapply() {
+      for (const [name, patch] of this.pending) {
+        // A firm deleted from the file elsewhere is NOT resurrected — the file
+        // decides which firms exist; we only re-apply our field changes.
+        const firm = this.find(name);
+        if (firm) Object.assign(firm, patch);
+      }
+    },
+  };
+  let firmsState = "idle";   // idle | loading | ready | missing | error
+  let firmsError = 0;
+
+  async function renderFirms() {
+    if (firmsState === "loading") return;
+    if (firmsState === "idle") {
+      firmsState = "loading";
+      $("firms").innerHTML = `<div class="empty">Loading your search firms…</div>`;
+      try {
+        firms.adopt(await loadFile(firms.path));
+        firmsState = firms.doc ? "ready" : "missing";
+      } catch (e) {
+        firmsState = "error"; firmsError = e.status || 0;
+      }
+    }
+    drawFirms();
+  }
+
+  // Section headings come from the data, in first-appearance order: that gives
+  // the file's own ordering, makes a group nobody has seen before render as its
+  // own section instead of breaking, and keeps "add a firm" an edit to
+  // search_firms.json alone.
+  function groupsOf(list) {
+    const out = [], byName = new Map();
+    for (const f of list) {
+      const name = (f.group || "").trim() || "Ungrouped";
+      let g = byName.get(name);
+      if (!g) { g = { name, firms: [] }; byName.set(name, g); out.push(g); }
+      g.firms.push(f);
+    }
+    return out;
+  }
+
+  // updated_at is a full timestamp; the board's relDate() works in whole days,
+  // which is the right granularity to show.
+  const firmStamp = f => f.updated_at
+    ? "Updated " + relDate((f.updated_at || "").slice(0, 10), todayISO()) : "";
+  const firmCheck = (f, field, label) =>
+    `<label class="toggle"><input type="checkbox" data-firm-toggle="${esc(f.name)}"`
+    + ` data-field="${field}"${f[field] ? " checked" : ""}> ${label}</label>`;
+
+  function firmCard(f) {
+    const link = f.url
+      ? `<a class="f-name" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`
+      : `<span class="f-name">${esc(f.name)}</span>`;
+    return `<article class="fcard" data-firm="${esc(f.name)}">
+      ${link}<span class="f-stamp">${esc(firmStamp(f))}</span>
+      <div class="f-desc">${esc(f.description || "")}</div>
+      <div class="f-checks">
+        ${firmCheck(f, "portal_outreach", "Portal outreach")}
+        ${firmCheck(f, "recruiter_outreach", "Recruiter outreach")}
+      </div>
+      <textarea data-firm-note="${esc(f.name)}" rows="2" spellcheck="false"
+        aria-label="Notes for ${esc(f.name)}"
+        placeholder="Notes — who you spoke to, what's next">${esc(f.notes || "")}</textarea>
+    </article>`;
+  }
+
+  function drawFirms() {
+    const host = $("firms");
+    if (firmsState === "error")
+      return void (host.innerHTML = `<div class="empty">Couldn't load your search `
+        + `firms (error ${firmsError || "network"}). Try reopening the tab.</div>`);
+    if (firms.readOnly)
+      return void (host.innerHTML = `<div class="empty">Your search firms can't be `
+        + `shown — see the message at the top of the page.</div>`);
+    if (!firms.list().length)
+      return void (host.innerHTML = `<div class="empty">No search firms yet. Add `
+        + `them to <span class="mono">${esc(firms.path)}</span> in your repo and `
+        + `reopen this tab.</div>`);
+    host.innerHTML =
+      `<div class="firms-head">
+         <p>The search firms you're working, and where you stand with each —
+            whether you've registered on their portal, and whether you've reached
+            an actual recruiter there. Changes save straight to your repo;
+            notes save when you click away.</p>
+         <span class="savestate" id="firmsSave"></span>
+       </div>`
+      + groupsOf(firms.list()).map(g =>
+          `<section class="pgroup"><h3>${esc(g.name)}`
+          + `<span class="pgroup-n">${g.firms.length}</span></h3>`
+          + g.firms.map(firmCard).join("") + `</section>`).join("");
+    drawSaveState();
+    // Scoped to the host, like the Pipeline tab's controls — the board binds
+    // its buttons with a bare document.querySelectorAll.
+    host.querySelectorAll("[data-firm-toggle]").forEach(cb => cb.onchange = () =>
+      toggleFirm(cb.dataset.firmToggle, cb.dataset.field, cb.checked));
+    host.querySelectorAll("[data-firm-note]").forEach(area => {
+      area.oninput = () => noteFirm(area.dataset.firmNote, area.value, false);
+      area.onblur  = () => noteFirm(area.dataset.firmNote, area.value, true);
+    });
+  }
+
+  // Repaints one firm's timestamp without re-rendering anything — a re-render
+  // would pull focus out of the textarea you're typing in. Compares the dataset
+  // rather than building a selector, since firm names hold spaces and brackets.
+  function refreshStamp(name) {
+    const f = firms.find(name); if (!f) return;
+    for (const el of $("firms").querySelectorAll("[data-firm]")) {
+      if (el.dataset.firm !== name) continue;
+      const stamp = el.querySelector(".f-stamp");
+      if (stamp) stamp.textContent = firmStamp(f);
+    }
+  }
+
+  // A full ISO-8601 UTC timestamp, not the board's date-only stamp: this file
+  // has no Python writer to stay byte-in-step with, and knowing you touched a
+  // firm an hour ago beats knowing it was "today".
+  const nowISO = () => new Date().toISOString();
+  function stampPending(name, patch) {
+    firms.pending.set(name, { ...(firms.pending.get(name) || {}), ...patch });
+    firms.rev++;
+  }
+
+  // A toggle saves immediately — no 5s undo toast. Dismissing a posting earns
+  // that window because it's destructive and awkward to reverse; a checkbox is
+  // undone by clicking it again, so a delay would only add latency.
+  function toggleFirm(name, field, value) {
+    if (field !== "portal_outreach" && field !== "recruiter_outreach") return;
+    const f = firms.find(name); if (!f) return;
+    f[field] = value;
+    f.updated_at = nowISO();
+    stampPending(name, { [field]: value, updated_at: f.updated_at });
+    refreshStamp(name);
+    saveFirms();
+  }
+
+  // Notes save when you click away, and on a short debounce while you type —
+  // never per keystroke, which would hammer the API and can rate-limit the
+  // token (same reasoning as the Pipeline tab's notes).
+  let firmsNoteTimer = null;
+  function noteFirm(name, text, flush) {
+    const f = firms.find(name); if (!f) return;
+    if (f.notes !== text) {
+      f.notes = text;
+      f.updated_at = nowISO();
+      stampPending(name, { notes: text, updated_at: f.updated_at });
+      refreshStamp(name);
+    }
+    clearTimeout(firmsNoteTimer);
+    if (!firms.pending.size) return;
+    if (flush) saveFirms(); else firmsNoteTimer = setTimeout(saveFirms, 1200);
+  }
+
+  // ---- the save indicator ----
+  let saveState = { kind:"idle", detail:"", at:0 };
+  const setSaveState = (kind, detail) => {
+    saveState = { kind, detail: detail || "", at: Date.now() };
+    drawSaveState();
+  };
+  function relClock(ms) {
+    const secs = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (secs < 45) return "just now";
+    const mins = Math.round(secs / 60);
+    return mins < 60 ? mins + "m ago" : Math.round(mins / 60) + "h ago";
+  }
+  function drawSaveState() {
+    const el = $("firmsSave"); if (!el) return;
+    el.classList.toggle("is-error", saveState.kind === "error");
+    if (saveState.kind === "saving") { el.textContent = "Saving…"; return; }
+    if (saveState.kind === "saved") { el.textContent = "Saved · " + relClock(saveState.at); return; }
+    if (saveState.kind === "error") {
+      el.innerHTML = `⚠ Couldn't save (${esc(saveState.detail)}) — your edit is `
+        + `still here but not yet in the repo. `
+        + `<button type="button" id="firmsRetry">Retry</button>`;
+      $("firmsRetry").onclick = () => saveFirms();
+      return;
+    }
+    el.textContent = "";
+  }
+  setInterval(() => { if (saveState.kind === "saved") drawSaveState(); }, 30000);
+
+  // Writes the whole file, queued on the same `chain` as every other tab's
+  // commits so two writes can never race.
+  //
+  // Deliberately NOT commit(): this needs three things that would be wrong for
+  // the board's own files.
+  //  1. It re-reads the sha before every PUT. The sha we hold is current only
+  //     while nobody else has written; a stale-but-valid one would let us
+  //     silently overwrite an edit made on GitHub or from another machine.
+  //  2. On a conflict it re-applies our edits onto the server's content rather
+  //     than re-sending the same body, so the other side's change survives.
+  //  3. It KEEPS your edit when the write fails. commit() resyncs from the
+  //     server, which is right for a dismissed id and wrong for typed notes.
+  function saveFirms() {
+    if (!firms.doc || firms.readOnly || !firms.pending.size) return;
+    setSaveState("saving");
+    chain = chain.then(async () => {
+      if (!firms.doc || firms.readOnly || !firms.pending.size) return;
+      let sentRev = 0;
+      const put = () => {
+        sentRev = firms.rev;   // captured with the body, so nothing typed
+        const body = firms.serialize();   // during the flight gets cleared
+        return api(firms.path, { method:"PUT", body: JSON.stringify({
+          message:"Update search firms", content: b64enc(body),
+          ...(firms.sha ? { sha: firms.sha } : {}) }) });
+      };
+      const merge = async () => {
+        firms.adopt(await loadFile(firms.path));
+        if (firms.readOnly) throw new Error("the file on GitHub isn't valid JSON");
+        if (!firms.doc) { firms.sha = null; return; }   // deleted — recreate it
+        firms.reapply();
+      };
+      // 1) refresh the sha, folding in anything that landed since we last read
+      const head = await loadFile(firms.path);
+      if (head.status === 404) firms.sha = null;
+      else if (head.sha !== firms.sha) await merge();
+      let r = await put();
+      // 2) one retry — GitHub answers a sha mismatch with 409 or 422
+      if (r.status === 409 || r.status === 422) { await merge(); r = await put(); }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      firms.sha = (await r.json()).content.sha;
+      if (firms.rev === sentRev) firms.pending.clear();
+      setSaveState("saved");
+    }).catch(err => {
+      const why = err.message || ("error " + (err.status || "network"));
+      setSaveState("error", why);
+      toast(`Couldn't save your search firms (${why}) — your edit is still on screen.`);
     });
   }
 
