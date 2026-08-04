@@ -1061,7 +1061,12 @@
 
   function renderDismissedList() {
     if (!DATA) return;
+    // rows = the live board. off_board = details the SCAN recovered from the
+    // history DB for dismissed postings that have since closed, moved, or been
+    // filtered out — so they render as real cards instead of bare ids. Only an
+    // id the DB has also lost falls through to `gone`.
     const byId = new Map(DATA.rows.map(r => [r.id, r]));
+    for (const r of (DATA.off_board || [])) if (!byId.has(r.id)) byId.set(r.id, r);
     const known = [], gone = [];
     for (const id of triage.set) {
       const r = byId.get(id);
@@ -1088,10 +1093,10 @@
       html = k.map(r => card(r, "dismissed")).join("");
       if (g.length) {
         html += `<details class="applied-sec"${q ? " open" : ""}>`
-          + `<summary>No longer on your board · ${g.length}</summary>`
-          + `<p class="dis-intro">Dismissed before the posting left your board. `
-          + `Only the id was saved, so there's no title to show — the company is `
-          + `the part before the “::”.</p>`
+          + `<summary>Nothing left to show · ${g.length}</summary>`
+          + `<p class="dis-intro">These ids aren't in your history either — the `
+          + `feed re-issued its job ids, so there's nothing left to look up. The `
+          + `company is the part before the “::”.</p>`
           + g.map(id => `<div class="dis-gone">`
               + `<span><b>${esc(id.split("::")[0])}</b> <code>${esc(id)}</code></span>`
               + `<button class="iconbtn c-back" data-restore="${esc(id)}" `
