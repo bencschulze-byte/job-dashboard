@@ -333,6 +333,22 @@
                     padding:7px 9px; resize:vertical; margin-top:4px; }
   .fcard textarea:focus { outline:2px solid var(--accent-line); outline-offset:1px; }
 
+  /* ---- dismissed tab ---- */
+  .dis-head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 6px; }
+  .dis-head input { flex:1 1 280px; min-width:0; padding:7px 10px; font:inherit;
+    font-size:13px; color:var(--ink); background:var(--surface);
+    border:1px solid var(--line-2); border-radius:8px; }
+  .dis-head input:focus-visible { outline:2px solid var(--accent-line); outline-offset:1px; }
+  .dis-n { color:var(--muted); font-size:13px; white-space:nowrap; }
+  .dis-intro { color:var(--muted); font-size:13px; margin:2px 0 12px; }
+  /* id-only rows: the posting is gone, so there is nothing to lay out as a card */
+  .dis-gone { display:flex; justify-content:space-between; align-items:center; gap:12px;
+    padding:7px 11px; margin-bottom:6px; font-size:13px;
+    border:1px solid var(--line); border-radius:8px; background:var(--raised); }
+  .dis-gone code { font-family:var(--mono); font-size:12px; color:var(--muted);
+    word-break:break-all; }
+  .dis-gone b { font-weight:600; }
+
   /* ---- interview prep tab ---- */
   .prep { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
   .prep-intro { display:flex; flex-wrap:wrap; align-items:baseline;
@@ -487,6 +503,7 @@
         <button data-view="discovery" aria-selected="false">Discovery</button>
         <button data-view="firms" aria-selected="false">Search&nbsp;Firms</button>
         <button data-view="prep" aria-selected="false">Interview&nbsp;Prep</button>
+        <button data-view="dismissed" aria-selected="false">Dismissed</button>
       </div>
       <button class="ghost" id="resetToken" title="Forget the saved token in this browser">Reset token</button>
     </div>
@@ -527,6 +544,16 @@
     </div>
     <div id="firmsView" hidden>
       <div id="firms" class="firms"></div>
+    </div>
+    <div id="dismissedView" hidden>
+      <p class="dis-intro">Everything you've hidden from the Board. Search it to check whether you already dismissed a posting, and put anything back with the ↺ button.</p>
+      <div class="dis-head">
+        <input id="disSearch" type="search" autocomplete="off"
+               placeholder="Search by company, title or location…"
+               aria-label="Search dismissed postings">
+        <span class="dis-n" id="disCount"></span>
+      </div>
+      <div id="dismissedList"></div>
     </div>
     <div id="prepView" hidden>
       <div id="prep" class="prep"></div>
@@ -581,7 +608,14 @@
   // ---- yaml list files (triage.yaml / discovery_*.yaml) — we own the format ----
   function parseList(t) {
     const ids = [];
-    for (const line of (t||"").split("\n")) {
+    // Split on \r?\n, not \n. With CRLF the trailing \r survives the split and
+    // /^\s*-\s*(.*)$/ then fails to match at all — `.` won't consume \r and `$`
+    // won't match before it — so EVERY line is skipped and the file parses as
+    // zero ids. That is silent and destructive: the next dismiss would
+    // serialize the one id it holds and overwrite all the others. Git stores
+    // these files LF today, so this is belt-and-braces, but the failure mode is
+    // bad enough to guard rather than rely on that staying true.
+    for (const line of (t||"").split(/\r?\n/)) {
       const m = line.match(/^\s*-\s*(.*)$/); if (!m) continue;
       let v = m[1].trim();
       if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1).replace(/\\"/g,'"').replace(/\\\\/g,"\\");
@@ -643,6 +677,9 @@
   const apps     = jsonStore(CONFIG.applicationsPath, "applications");
   const STORES = [triage, accepted, rejected, apps];
   const filters = { tier:"", company:"", matchesOnly:true, newOnly:false, sort:"fit" };
+  // Dismissed-tab search box. Declared up here with the other view state so it
+  // is initialised before the first renderAll(), whatever the load order.
+  let disQuery = "";
 
   // ---- application records ----
   // `history` is the only stage storage — stage, stage_since and applied_at are
@@ -849,9 +886,13 @@
       $("discoveryView").hidden = b.dataset.view !== "discovery";
       $("firmsView").hidden = b.dataset.view !== "firms";
       $("prepView").hidden = b.dataset.view !== "prep";
+      $("dismissedView").hidden = b.dataset.view !== "dismissed";
       if (b.dataset.view === "prep") renderPrep();
       if (b.dataset.view === "firms") renderFirms();
     };
+    // Re-renders only the list, never the whole tab — the input sits outside
+    // #dismissedList so typing can't blow away its own focus or caret.
+    $("disSearch").oninput = e => { disQuery = e.target.value; renderDismissedList(); };
     renderAll();
   }
 
@@ -888,7 +929,8 @@
 
   function card(r, mode) {
     const tag = mode==="applied" ? '<span class="appliedtag">Applied</span>'
-      : (r.new ? '<span class="newtag">New</span>' : '');
+      // "New" is about your board; on the Dismissed tab it would be a lie.
+      : (r.new && mode!=="dismissed" ? '<span class="newtag">New</span>' : '');
     const near = r.match ? "" : ' <span style="text-transform:none;letter-spacing:0;color:var(--faint)">near-miss</span>';
     // Deliberately not "closed": a posting also leaves the board when its
     // company drops out of companies.yaml, when filters.yaml changes, or when
@@ -901,9 +943,13 @@
     const sal = r.salary ? `<span class="c-sal">${esc(r.salary)}</span>` : "";
     const actions = mode==="applied"
       ? `<button class="iconbtn c-back" data-unapply="${esc(r.id)}" aria-label="Move back to open">${IC.back}</button>`
+      : mode==="dismissed"
+      ? `<button class="iconbtn c-back" data-restore="${esc(r.id)}" aria-label="Put ${esc(r.title)} back on the board">${IC.back}</button>`
       : `<button class="iconbtn c-apply" data-apply="${esc(r.id)}" aria-label="Mark ${esc(r.title)} as applied">${IC.check}</button>`
         + `<button class="iconbtn c-dismiss" data-dismiss="${esc(r.id)}" aria-label="Dismiss ${esc(r.title)}">${IC.x}</button>`;
-    const cls = mode==="applied" ? "card is-applied" : ("card" + (r.new ? " is-new" : ""));
+    const cls = mode==="applied" ? "card is-applied"
+      : mode==="dismissed" ? "card"
+      : ("card" + (r.new ? " is-new" : ""));
     const fit = r.score==null ? "" :
       `<span class="fit ${r.score>=80?"hi":r.score<60?"lo":""}" title="${esc(fitTip(r))}">${r.score}</span>`;
     return `<article class="${cls}" data-id="${esc(r.id)}">
@@ -936,7 +982,7 @@
   // Every client-owned mutation renders through this, so no tab is ever left
   // showing state the stores no longer hold — including after a failed commit
   // resyncs from the server.
-  function renderAll() { renderRows(); renderPipeline(); renderDiscovery(); }
+  function renderAll() { renderRows(); renderPipeline(); renderDiscovery(); renderDismissed(); }
 
   // ---- Summary tab: applied / open / dismissed / non-match, by tier ----
   function renderSummary() {
@@ -996,6 +1042,80 @@
     $("summary").innerHTML =
       `<p style="color:var(--muted);font-size:13px;margin:2px 0 2px">Your funnel by tier — open matches split into applied / open / dismissed, plus everything sourced that didn't match.</p>`
       + blocks;
+  }
+
+  // ---- Dismissed tab: everything you've hidden from the Board ----
+  // triage.yaml stores ONLY ids — no snapshot, unlike applications.json. So a
+  // posting dismissed before it left the board can no longer be described:
+  // DATA.rows has dropped it and there is no title to show. Those ids are
+  // listed separately rather than silently omitted, because the point of this
+  // tab is to answer "did I dismiss this?" for EVERY id in the file. Today
+  // that's 53 of 211. Snapshotting on dismiss would fix it going forward, but
+  // it changes the file format, so it's a separate decision.
+  function renderDismissed() {
+    const tab = $("tabs").querySelector('[data-view="dismissed"]');
+    if (tab) tab.innerHTML = "Dismissed"
+      + (triage.set.size ? ` <span class="tabcount">${triage.set.size}</span>` : "");
+    renderDismissedList();
+  }
+
+  function renderDismissedList() {
+    if (!DATA) return;
+    const byId = new Map(DATA.rows.map(r => [r.id, r]));
+    const known = [], gone = [];
+    for (const id of triage.set) {
+      const r = byId.get(id);
+      if (r) known.push(r); else gone.push(id);
+    }
+    known.sort(byTier);
+    gone.sort();
+
+    const q = disQuery.trim().toLowerCase();
+    const k = q ? known.filter(r => `${r.company} ${r.title} ${r.location_full||r.location||""}`
+      .toLowerCase().includes(q)) : known;
+    const g = q ? gone.filter(id => id.toLowerCase().includes(q)) : gone;
+    const total = triage.set.size;
+    $("disCount").textContent = q ? `${k.length + g.length} of ${total} shown`
+                                  : `${total} dismissed`;
+
+    let html;
+    if (!total) {
+      html = `<div class="empty">Nothing dismissed yet. Hide a posting on the `
+           + `Board and it'll appear here.</div>`;
+    } else if (!k.length && !g.length) {
+      html = `<div class="empty">No dismissed posting matches that search.</div>`;
+    } else {
+      html = k.map(r => card(r, "dismissed")).join("");
+      if (g.length) {
+        html += `<details class="applied-sec"${q ? " open" : ""}>`
+          + `<summary>No longer on your board · ${g.length}</summary>`
+          + `<p class="dis-intro">Dismissed before the posting left your board. `
+          + `Only the id was saved, so there's no title to show — the company is `
+          + `the part before the “::”.</p>`
+          + g.map(id => `<div class="dis-gone">`
+              + `<span><b>${esc(id.split("::")[0])}</b> <code>${esc(id)}</code></span>`
+              + `<button class="iconbtn c-back" data-restore="${esc(id)}" `
+              + `aria-label="Put ${esc(id)} back on the board">${IC.back}</button>`
+            + `</div>`).join("")
+          + `</details>`;
+      }
+    }
+    $("dismissedList").innerHTML = html;
+    // Scoped to this host so the Board's own buttons are never cross-bound.
+    $("dismissedList").querySelectorAll("[data-restore]").forEach(b =>
+      b.onclick = () => restore(b.dataset.restore));
+  }
+
+  // The exact inverse of act("dismiss"): same optimistic update, 5s undo and
+  // delayed commit, so a mis-click costs nothing and never hits the network.
+  function restore(id) {
+    if (!triage.set.delete(id)) return;
+    renderAll();
+    toast("Put back on your board.", {
+      ms: 5000,
+      after: () => commit(triage),
+      undo: () => { triage.set.add(id); renderAll(); },
+    });
   }
 
   // ---- Pipeline tab: your applications by stage ----
